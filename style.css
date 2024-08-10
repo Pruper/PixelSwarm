@@ -1,0 +1,45 @@
+html,
+body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    margin: 5px;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    background-color: #EEE;
+    color: black;
+    font-family: 'Courier New', Courier, monospace, sans-serif;
+    font-weight: bold;
+}
+
+.center {
+    text-align: center;
+    margin: auto;
+}
+
+canvas {
+    padding: 0;
+    margin: auto;
+    display: block;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+}
+
+footer {
+    text-align: center;
+    padding: 3px;
+    color: rgb(0, 0, 0);
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    left: auto;
+}

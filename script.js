@@ -5,7 +5,10 @@ document.getElementById("footer-information").innerHTML = GAME_NAMEVER + "<br>Ma
 
 const TICKRATE = 20;
 const PLAYER_SPEED = 4 / TICKRATE;
-const WORLD_BOUNDARY = Number.MAX_VALUE;
+
+const MAP_CHUNK_SIZE = 16;
+const MAP_INITIAL_ENTITIES = 511;
+const WORLD_BOUNDARY = 16 / 2 * CHUNK_SIZE;
 
 let canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("2d");
@@ -26,32 +29,36 @@ let map = {
 }
 
 // generate map
-for (let cx = -8; cx < 8; cx++) {
-    for (let cy = -8; cy < 8; cy++) {
+for (let cx = -Math.floor(MAP_CHUNK_SIZE / 2); cx < Math.floor(MAP_CHUNK_SIZE / 2); cx++) {
+    for (let cy = -Math.floor(MAP_CHUNK_SIZE / 2); cy < Math.floor(MAP_CHUNK_SIZE / 2); cy++) {
         map.chunks[cx + ", " + cy] = new Chunk(cx, cy);
     }
 }
 
-for (let i = 0; i < 5000; i++) {
-    map.entities.push(new Dummy(randomRange(-96, 96), randomRange(-96, 96)));
+for (let i = 0; i < MAP_INITIAL_ENTITIES; i++) {
+    map.entities.push(new Dummy(randomRange(-WORLD_BOUNDARY, WORLD_BOUNDARY), randomRange(-WORLD_BOUNDARY, WORLD_BOUNDARY)));
 }
 
 let playerEntity = new Player(0, 0, 0, Math.round(Math.random()), 15);
 map.entities.push(playerEntity);
 
 let keybinds = {
-    "w": false,
-    "s": false,
-    "a": false,
-    "d": false
+    "w": false, // up
+    "s": false, // down
+    "a": false, // left
+    "d": false, // right
+    "b": false, // show hitboxes
+    "r": false, //
 }
 
 window.addEventListener('keydown', function (event) {
-    if (event.key in keybinds) keybinds[event.key] = true;
+    if (!event.key in keybinds) return;
+    keybinds[event.key] = true;
 });
 
 window.addEventListener('keyup', function (event) {
-    if (event.key in keybinds) keybinds[event.key] = false;
+    if (!event.key in keybinds) return;
+    keybinds[event.key] = false;
 });
 
 
@@ -117,6 +124,10 @@ canvas.addEventListener("click", function (e) {
 });
 
 function tick() {
+    if (keybinds["r"]) map.entities.push(new Rock(playerEntity.x, playerEntity.y));
+
+    // entity ticking and movement
+
     for (let i = 0; i < map.entities.length; i++) {
         map.entities[i].tick();
     }
@@ -134,9 +145,72 @@ function tick() {
     playerEntity.movement.x = normalized.x;
     playerEntity.movement.y = normalized.y;
 
+    for (let i = 0; i < map.entities.length; i++) {
+        for (let j = i + 1; j < map.entities.length; j++) {
+            if (collisionCheck(map.entities[i], map.entities[j])) {
+                resolveCollision(map.entities[i], map.entities[j]);
+            }
+        }
+        map.entities[i].fixPosition();
+    }
+
     lastTick = Date.now();
     tps++;
 }
+
+function collisionCheck(entity1, entity2) {
+    if (entity1.hitbox.type != "circle" || entity2.hitbox.type != "circle") return false;
+    const dx = entity2.x - entity1.x;
+    const dy = entity2.y - entity1.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const combinedRadius = entity1.hitbox.radius + entity2.hitbox.radius;
+    return distance < combinedRadius;
+}
+
+function pointBoundaryCheck(x, y) {
+    if (x < -WORLD_BOUNDARY) {
+        x = -WORLD_BOUNDARY;
+    } else if (x > WORLD_BOUNDARY) {
+        x = WORLD_BOUNDARY;
+    }
+
+    if (y < -WORLD_BOUNDARY) {
+        y = -WORLD_BOUNDARY;
+    } else if (y > WORLD_BOUNDARY) {
+        y = WORLD_BOUNDARY;
+    }
+
+    return { x: x, y: y }
+}
+
+function resolveCollision(entity1, entity2) {
+    if (entity1.hitbox.type != "circle" || entity2.hitbox.type != "circle") return;
+    const dx = entity2.x - entity1.x;
+    const dy = entity2.y - entity1.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance === 0) {
+        const offset = 0.01;
+        entity2.x += offset;
+        entity2.y += offset;
+        return;
+    }
+
+    const overlap = entity1.hitbox.radius + entity2.hitbox.radius - distance;
+    const normalizedDx = dx / distance;
+    const normalizedDy = dy / distance;
+
+    entity1.x -= normalizedDx * overlap / 2;
+    entity1.y -= normalizedDy * overlap / 2;
+    entity2.x += normalizedDx * overlap / 2;
+    entity2.y += normalizedDy * overlap / 2;
+
+    entity1.movement.x -= normalizedDx * overlap / 2;
+    entity1.movement.y -= normalizedDy * overlap / 2;
+    entity2.movement.x += normalizedDx * overlap / 2;
+    entity2.movement.y += normalizedDy * overlap / 2;
+}
+
 
 const RENDER_SCALE = 4;
 
@@ -158,11 +232,23 @@ function render() {
         spritesheet.draw(ctx, 0, 14, selRenderCoords.x, selRenderCoords.y, RENDER_SCALE); // selection box
     }
 
+    let renderedEntities = 0;
     for (let i = 0; i < map.entities.length; i++) {
+        if (!map.entities[i].visible()) continue;
+        renderedEntities++;
         map.entities[i].draw(ctx, spritesheet, RENDER_SCALE);
     }
+
+    if (keybinds["b"]) {
+        for (let i = 0; i < map.entities.length; i++) {
+            map.entities[i].drawHitbox(ctx, RENDER_SCALE);
+        }
+    }
+
+
     drawTextWithShadow(ctx, "Position: " + Number(playerEntity.x).toFixed(2) + ", " + Number(playerEntity.y).toFixed(2), 10, 10);
     drawTextWithShadow(ctx, debugText, 10, 35);
+    drawTextWithShadow(ctx, renderedEntities + " / " + map.entities.length + " entities rendered", 10, 60);
 
     fps++;
     window.requestAnimationFrame(render);

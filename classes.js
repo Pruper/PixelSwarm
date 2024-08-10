@@ -40,21 +40,24 @@ class Chunk {
     }
 }
 
-const VISIBILITY_PADDING = 1;
+const VISIBILITY_PADDING = 0.2;
 
 class Entity {
     constructor(x, y, rotation, spriteX, spriteY) {
         this.x = x;
         this.y = y;
-        this.movement = { x: 0, y: 0 }
         this.rotation = rotation;
+        this.movement = { x: 0, y: 0 }
+        this.hitbox = { type: "circle", radius: 0.36 };
+
         this.spriteX = spriteX;
         this.spriteY = spriteY;
+        this.renderScale = 1;
     }
 
     visible() {
-        let topLeft = screenPositionFromCoordinates(this.x - 0.5 - VISIBILITY_PADDING, this.y - 0.5 - VISIBILITY_PADDING);
-        let bottomRight = screenPositionFromCoordinates(this.x - 0.5 + SPRITE_SIZE + VISIBILITY_PADDING, this.y - 0.5 + SPRITE_SIZE + VISIBILITY_PADDING);
+        let topLeft = screenPositionFromCoordinates(this.x - (0.5 * this.renderScale) - VISIBILITY_PADDING, this.y - (0.5 * this.renderScale) - VISIBILITY_PADDING);
+        let bottomRight = screenPositionFromCoordinates(this.x - (0.5 * this.renderScale) + SPRITE_SIZE + VISIBILITY_PADDING, this.y - (0.5 * this.renderScale) + SPRITE_SIZE + VISIBILITY_PADDING);
 
         return boundingBoxWithinScreen(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y);
     }
@@ -63,24 +66,18 @@ class Entity {
     interpolatedCoordinates() {
         const timeSinceLastTick = Date.now() - lastTick;
         const interpolationFactor = timeSinceLastTick / (1000 / TICKRATE);
-        return { x: this.x + this.movement.x * interpolationFactor, y: this.y + this.movement.y * interpolationFactor };
+        return pointBoundaryCheck(this.x + this.movement.x * interpolationFactor, this.y + this.movement.y * interpolationFactor);
     }
 
     tick() {
         this.x += this.movement.x;
         this.y += this.movement.y;
+    }
 
-        if (this.x < -WORLD_BOUNDARY) {
-            this.x = -WORLD_BOUNDARY;
-        } else if (this.x > WORLD_BOUNDARY) {
-            this.x = WORLD_BOUNDARY;
-        }
-    
-        if (this.y < -WORLD_BOUNDARY) {
-            this.y = -WORLD_BOUNDARY;
-        } else if (this.y > WORLD_BOUNDARY) {
-            this.y = WORLD_BOUNDARY;
-        }
+    fixPosition() {
+        const coords = pointBoundaryCheck(this.x, this.y);
+        this.x = coords.x;
+        this.y = coords.y;
     }
 
     draw(ctx, spritesheet, scale) {
@@ -88,8 +85,21 @@ class Entity {
 
         const interpolated = this.interpolatedCoordinates();
 
-        let drawCoords = screenPositionFromCoordinates(interpolated.x - 0.5, interpolated.y - 0.5);
-        spritesheet.drawRotated(ctx, this.spriteX, this.spriteY, drawCoords.x, drawCoords.y, this.rotation, scale);
+        let drawCoords = screenPositionFromCoordinates(interpolated.x - (0.5 * this.renderScale), interpolated.y - (0.5 * this.renderScale));
+        spritesheet.drawRotated(ctx, this.spriteX, this.spriteY, drawCoords.x, drawCoords.y, this.rotation, scale * this.renderScale);
+    }
+
+    drawHitbox(ctx, scale) {
+        if (this.hitbox.type == "circle") {
+            const interpolated = this.interpolatedCoordinates();
+            let drawCoords = screenPositionFromCoordinates(interpolated.x, interpolated.y); // center of circle should be in center of entity
+
+            ctx.beginPath();
+            ctx.arc(drawCoords.x, drawCoords.y, this.hitbox.radius * SPRITE_SIZE * scale, 0, 2 * Math.PI, false);
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.stroke();
+        }
     }
 }
 
@@ -108,24 +118,32 @@ class Dummy extends Entity {
             const movementVector = normalizeVector(Math.random() - 0.5, Math.random() - 0.5, this.movementSpeed);
             this.movement.x = movementVector.x;
             this.movement.y = movementVector.y;
-            this.rotation = getAngleTowards(0, 0, this.movement.x, this.movement.y);
             this.directionChangeTimer = randomRange(30, 50);
         }
-    }
-
-    draw(ctx, spreadsheet, scale) {
-        super.draw(ctx, spreadsheet, scale);
-        /* nametag
-        if (!this.visible()) return;
-        const interpolatedCoordinates = this.interpolatedCoordinates();
-        const drawCoords = screenPositionFromCoordinates(interpolatedCoordinates.x, interpolatedCoordinates.y);
-        drawTextWithShadow(ctx, "npc", drawCoords.x - (SPRITE_SIZE * RENDER_SCALE) / 4, drawCoords.y - 70, "#FFFFFF", "center");
-        */
+        this.rotation = getAngleTowards(0, 0, this.movement.x, this.movement.y);
     }
 }
 
 class Player extends Entity {
     // player code here
+}
+
+class Rock extends Entity {
+    constructor(x, y) {
+        super(x, y, 0, 1, 14);
+
+        const randomScale = 1 + Math.random();
+
+        this.hitbox = { type: "circle", radius: 0.36 * randomScale };
+
+        this.renderScale = randomScale;
+    }
+
+    tick() {
+        super.tick();
+        this.movement.x = 0;
+        this.movement.y = 0;
+    }
 }
 
 

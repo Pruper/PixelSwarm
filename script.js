@@ -9,8 +9,8 @@ document.getElementById("footer-information").innerHTML = GAME_NAMEVER + "<br>Ma
 const TICKRATE = 20;
 const PLAYER_SPEED = 4 / TICKRATE;
 
-const MAP_CHUNK_SIZE = 2;
-const MAP_INITIAL_ENTITIES = 100;
+const MAP_CHUNK_SIZE = 8;
+const MAP_INITIAL_ENTITIES = 256;
 const WORLD_BOUNDARY = 16 / 2 * CHUNK_SIZE;
 
 // Set up keybinds
@@ -21,6 +21,7 @@ let keybinds = {
     "d": false, // right
     "b": false, // show hitboxes
     "r": false, // spawn rock entity
+    "n": false, // give bombs
     "shift": false, // switch tile placement
     "f2": false, // take screenshots
 }
@@ -33,6 +34,13 @@ window.addEventListener('keydown', function (event) {
     // Take a scrreenshot if F2 not already pressed to avoid spam
     if (!keybinds["f2"] && event.key.toLowerCase() == "f2") {
         screenshot();
+    }
+
+    // Give debug items (bombs)
+    if (!keybinds["n"] && event.key.toLowerCase() == "n") {
+        playerEntity.inventory.addItem(8, 5);
+        playerEntity.inventory.addItem(9, 5);
+        playerEntity.inventory.addItem(10, 5);
     }
 
     // Switch inventory slot if number is valid
@@ -161,6 +169,9 @@ canvas.oncontextmenu = function (e) { e.preventDefault(); e.stopPropagation(); }
 
 function tick() {
     if (keybinds["r"]) map.addEntity(new Rock(playerEntity.x, playerEntity.y));
+
+    // map ticking
+    map.tick();
 
     // entity ticking and movement
 

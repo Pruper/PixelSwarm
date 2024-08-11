@@ -11,9 +11,15 @@ const TILE_DATA = {
     4: { x: 3, y: 0, solid: true, break: { 4: 1 }, name: "Wood" },
     5: { x: 4, y: 0, solid: false, break: { 5: 1 }, name: "Floor" },
 
+    8: { x: 2, y: 1, solid: false, break: { 8: 1 }, explosionPower: 2, name: "TNT" },
+    9: { x: 3, y: 1, solid: false, break: { 9: 1 }, explosionPower: 4, name: "C4" },
+    10: { x: 4, y: 1, solid: false, break: { 10: 1 }, explosionPower: 6, name: "Nuclear Bomb" },
+
 
     999: { x: 15, y: 0, solid: false, break: null, name: "Null" }
 }
+
+const MINIMUM_EXPLOSION_POWER = 0.4;
 
 class Chunk {
     constructor(x, y) {
@@ -31,6 +37,10 @@ class Chunk {
         return this.tiles[modFix(x, CHUNK_SIZE) + y * CHUNK_SIZE];
     }
 
+    getInternalTileMapCoordinates(x, y) {
+        return { x: this.x * CHUNK_SIZE + x, y: this.y * CHUNK_SIZE + y };
+    }
+
     setInternalTile(x, y, tile, conditional = false) {
         let previousTile = this.tiles[(modFix(x, CHUNK_SIZE)) + y * CHUNK_SIZE];
 
@@ -41,6 +51,20 @@ class Chunk {
         }
         this.tiles[(modFix(x, CHUNK_SIZE)) + y * CHUNK_SIZE] = tile;
         return true;
+    }
+
+    explodeInternalTile(x, y, explosionPower) {
+        this.attemptDestroyInternalTile(x, y);
+        const boomExpansionBase = this.getInternalTileMapCoordinates(x, y);
+
+        const newExplosionPower = explosionPower * randomRange(0.25, 0.75);
+
+        if (newExplosionPower < MINIMUM_EXPLOSION_POWER) return;
+
+        map.markForExplosion(boomExpansionBase.x + 1, boomExpansionBase.y, newExplosionPower);
+        map.markForExplosion(boomExpansionBase.x - 1, boomExpansionBase.y, newExplosionPower);
+        map.markForExplosion(boomExpansionBase.x, boomExpansionBase.y + 1, newExplosionPower);
+        map.markForExplosion(boomExpansionBase.x, boomExpansionBase.y - 1, newExplosionPower);
     }
 
     attemptDestroyInternalTile(x, y) {
@@ -374,10 +398,13 @@ class SpriteSheet {
     }
 }
 
+const EXPLOSION_CYCLES_PER_TICK = 2;
+
 class Map {
     constructor(size, debugEntities) {
         this.chunks = {};
         this.entities = [];
+        this.explosions = [];
         this.worldBoundary = CHUNK_SIZE / 2 * size;
 
         for (let cx = -Math.floor(MAP_CHUNK_SIZE / 2); cx < Math.floor(MAP_CHUNK_SIZE / 2); cx++) {
@@ -391,7 +418,45 @@ class Map {
         }
     }
 
+    tick() {
+        // explosion cycles
+        for (let i = 0; i < EXPLOSION_CYCLES_PER_TICK; i++) {
+            const explosionNumberThisCycle = this.explosions.length;
+            for (let j = 0; j < explosionNumberThisCycle; j++) {
+                this.explodeTile(this.explosions[0].x, this.explosions[0].y, this.explosions[0].explosionPower);
+                this.explosions.splice(0, 1);
+            }
+        }
+    }
+
+    markForExplosion(x, y, explosionPower) {
+        this.explosions.push({ x: x, y: y, explosionPower: explosionPower });
+    }
+
+    explodeTile(x, y, explosionPower) {
+        x = Math.floor(x); y = Math.floor(y);
+        const chunk = this.getChunkFromTile(x, y);
+        if (!(chunk instanceof Chunk)) return;
+
+        // chained explosion
+        if (TILE_DATA[this.getTile(x, y)].explosionPower) {
+            explosionPower = TILE_DATA[this.getTile(x, y)].explosionPower;
+            this.setTile(x, y, 0);
+        }
+
+        chunk.explodeInternalTile(modFix(x, CHUNK_SIZE), modFix(y, CHUNK_SIZE), explosionPower)
+    }
+
     useItem(x, y, item) {
+        // other usage
+        const clickedTile = map.getTile(x, y);
+        if (TILE_DATA[clickedTile].explosionPower >= MINIMUM_EXPLOSION_POWER) {
+            this.setTile(x, y, 0);
+            this.explodeTile(x, y, TILE_DATA[clickedTile].explosionPower);
+            return false;
+        }
+
+        // place tile otherwise
         if (item == null) return false;
         return this.setTile(x, y, item.id, true);
     }
@@ -477,11 +542,11 @@ class Map {
 
     createTileFaces(x, y) {
         if (!TILE_DATA[this.getTile(x, y)].solid) return [];
-        return [{ x: x, y: y, length: 1, collider: "top"}, { x: x, y: y + 1, length: 1, collider: "bottom"}, { x: x, y: y, length: 1, collider: "left"}, { x: x + 1, y: y, length: 1, collider: "right"}];
+        return [{ x: x, y: y, length: 1, collider: "top" }, { x: x, y: y + 1, length: 1, collider: "bottom" }, { x: x, y: y, length: 1, collider: "left" }, { x: x + 1, y: y, length: 1, collider: "right" }];
     }
 
     pointBoundaryCheckFaces(x, y, hitbox, faces) {
-        let coords = { x: x, y: y};
+        let coords = { x: x, y: y };
         for (let i = 0; i < faces.length; i++) {
             coords = this.pointBoundaryCheckFace(coords.x, coords.y, hitbox, faces[i]);
         }
@@ -492,12 +557,12 @@ class Map {
         if (hitbox == null || hitbox.type !== "circle") {
             return this.pointBoundaryCheck(x, y);
         }
-    
+
         const hitboxLeft = x - hitbox.radius;
         const hitboxRight = x + hitbox.radius;
         const hitboxTop = y - hitbox.radius;
         const hitboxBottom = y + hitbox.radius;
-    
+
         if (face.collider === "top") {
             if (hitboxBottom >= face.y && face.x <= x && face.x + face.length >= x) {
                 if (hitboxTop <= face.y + 0.01) {
@@ -526,7 +591,7 @@ class Map {
                 }
             }
         }
-    
+
         return { x: x, y: y };
     }
 }

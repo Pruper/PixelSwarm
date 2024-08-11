@@ -6,8 +6,8 @@ document.getElementById("footer-information").innerHTML = GAME_NAMEVER + "<br>Ma
 const TICKRATE = 20;
 const PLAYER_SPEED = 4 / TICKRATE;
 
-const MAP_CHUNK_SIZE = 16;
-const MAP_INITIAL_ENTITIES = 511;
+const MAP_CHUNK_SIZE = 2;
+const MAP_INITIAL_ENTITIES = 100;
 const WORLD_BOUNDARY = 16 / 2 * CHUNK_SIZE;
 
 let canvas = document.getElementById("canvas");
@@ -23,24 +23,10 @@ let spritesImage = new Image();
 spritesImage.src = "sprites.png"
 spritesheet = new SpriteSheet(spritesImage);
 
-let map = {
-    chunks: {},
-    entities: []
-}
-
-// generate map
-for (let cx = -Math.floor(MAP_CHUNK_SIZE / 2); cx < Math.floor(MAP_CHUNK_SIZE / 2); cx++) {
-    for (let cy = -Math.floor(MAP_CHUNK_SIZE / 2); cy < Math.floor(MAP_CHUNK_SIZE / 2); cy++) {
-        map.chunks[cx + ", " + cy] = new Chunk(cx, cy);
-    }
-}
-
-for (let i = 0; i < MAP_INITIAL_ENTITIES; i++) {
-    map.entities.push(new Dummy(randomRange(-WORLD_BOUNDARY, WORLD_BOUNDARY), randomRange(-WORLD_BOUNDARY, WORLD_BOUNDARY)));
-}
+let map = new Map(MAP_CHUNK_SIZE, MAP_INITIAL_ENTITIES);
 
 let playerEntity = new Player(0, 0, 0, Math.round(Math.random()), 15);
-map.entities.push(playerEntity);
+map.addEntity(playerEntity);
 
 let keybinds = {
     "w": false, // up
@@ -48,17 +34,18 @@ let keybinds = {
     "a": false, // left
     "d": false, // right
     "b": false, // show hitboxes
-    "r": false, //
+    "r": false, // spawn rock entity
+    "shift": false, // switch tile placement
 }
 
 window.addEventListener('keydown', function (event) {
-    if (!event.key in keybinds) return;
-    keybinds[event.key] = true;
+    if (!event.key.toLowerCase() in keybinds) return;
+    keybinds[event.key.toLowerCase()] = true;
 });
 
 window.addEventListener('keyup', function (event) {
-    if (!event.key in keybinds) return;
-    keybinds[event.key] = false;
+    if (!event.key.toLowerCase() in keybinds) return;
+    keybinds[event.key.toLowerCase()] = false;
 });
 
 
@@ -85,21 +72,6 @@ function boundingBoxWithinScreen(x1, y1, x2, y2) {
     return (x1 <= canvas.width && x2 >= 0 && y1 <= canvas.height && y2 >= 0);
 }
 
-setup();
-function setup() {
-
-}
-
-document.body.addEventListener("click", function (e) {
-    if (e.target.id != "canvas") {
-
-    }
-
-    let targetCheck = e.target.closest('.ignoreClickDeselect');
-    if (targetCheck != null) return;
-    //deselectAll();
-});
-
 let mousePosition = { x: 0, y: 0 };
 let selectionBox = { x: 0, y: 0, visible: false }
 
@@ -120,11 +92,11 @@ canvas.addEventListener("mouseleave", function (e) {
 });
 
 canvas.addEventListener("click", function (e) {
-    ctx.fillStyle = '#' + (Math.random() * 0xFFFFFF << 0).toString(16).padStart(6, '0');
+    map.setTile(selectionBox.x, selectionBox.y, keybinds["shift"] ? 4 : 3);
 });
 
 function tick() {
-    if (keybinds["r"]) map.entities.push(new Rock(playerEntity.x, playerEntity.y));
+    if (keybinds["r"]) map.addEntity(new Rock(playerEntity.x, playerEntity.y));
 
     // entity ticking and movement
 
@@ -147,7 +119,7 @@ function tick() {
 
     for (let i = 0; i < map.entities.length; i++) {
         for (let j = i + 1; j < map.entities.length; j++) {
-            if (collisionCheck(map.entities[i], map.entities[j])) {
+            if (map.entities[i].collisionCheck(map.entities[j])) {
                 resolveCollision(map.entities[i], map.entities[j]);
             }
         }
@@ -158,29 +130,51 @@ function tick() {
     tps++;
 }
 
-function collisionCheck(entity1, entity2) {
-    if (entity1.hitbox.type != "circle" || entity2.hitbox.type != "circle") return false;
-    const dx = entity2.x - entity1.x;
-    const dy = entity2.y - entity1.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const combinedRadius = entity1.hitbox.radius + entity2.hitbox.radius;
-    return distance < combinedRadius;
-}
+const TILE_COLLISION_PADDING = 0.2;
 
 function pointBoundaryCheck(x, y) {
-    if (x < -WORLD_BOUNDARY) {
-        x = -WORLD_BOUNDARY;
-    } else if (x > WORLD_BOUNDARY) {
-        x = WORLD_BOUNDARY;
+    if (x < -map.worldBoundary) {
+        x = -map.worldBoundary;
+    } else if (x > map.worldBoundary) {
+        x = map.worldBoundary;
     }
 
-    if (y < -WORLD_BOUNDARY) {
-        y = -WORLD_BOUNDARY;
-    } else if (y > WORLD_BOUNDARY) {
-        y = WORLD_BOUNDARY;
+    if (y < -map.worldBoundary) {
+        y = -map.worldBoundary;
+    } else if (y > map.worldBoundary) {
+        y = map.worldBoundary;
     }
+
+    /* broken tile collisions lol
+
+    let tileData = TILE_DATA[map.getTile(x, y)];
+    if (tileData.solid) {
+        let tileX = Math.floor(x);
+        let tileY = Math.floor(y);
+
+        let distLeft = x - TILE_COLLISION_PADDING - tileX;
+        let distRight = tileX + 1 + TILE_COLLISION_PADDING - x;
+        let distTop = y - tileY - TILE_COLLISION_PADDING;
+        let distBottom = tileY + 1 + TILE_COLLISION_PADDING - y;
+
+        if (Math.abs(distLeft) < Math.abs(distRight) && Math.abs(distLeft) < Math.abs(distTop) && Math.abs(distLeft) < Math.abs(distBottom)) {
+            x = tileX - 0.001;
+        } else if (Math.abs(distRight) < Math.abs(distTop) && Math.abs(distRight) < Math.abs(distBottom)) {
+            x = tileX + 1 + 0.001;
+        } else if (Math.abs(distTop) < Math.abs(distBottom)) {
+            y = tileY - 0.001;
+        } else {
+            y = tileY + 1 + 0.001;
+        }
+    }
+
+    */
 
     return { x: x, y: y }
+}
+
+function tileBoundaryCheck(x, y, tileX, tileY) {
+
 }
 
 function resolveCollision(entity1, entity2) {
@@ -331,4 +325,8 @@ function darkenHexColor(hex, amount) {
 
 function randomRange(min, max) {
     return (Math.random() * (max - min)) + min;
+}
+
+function modFix(n, m) {
+    return ((n % m) + m) % m;
 }

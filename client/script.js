@@ -25,42 +25,52 @@ let keybinds = {
     "f2": false, // take screenshots
 }
 
-// Key events
+// Keyboard event listener
 window.addEventListener('keydown', function (event) {
+    // Don't do anything if key is invalid
     if (!event.key.toLowerCase() in keybinds) return;
 
+    // Take a scrreenshot if F2 not already pressed to avoid spam
     if (!keybinds["f2"] && event.key.toLowerCase() == "f2") {
         screenshot();
     }
 
+    // Switch inventory slot if number is valid
     if (numberKeys.contains(event.key.toLowerCase()) && !keybinds[event.key.toLowerCase]) {
         inventorySelection = Number.parseInt(event.key.toLowerCase()) - 1;
     };
 
+    // Set key as pressed
     keybinds[event.key.toLowerCase()] = true;
 });
 
+// Set key as no longer pressed if it's valid on release
 window.addEventListener('keyup', function (event) {
     if (!event.key.toLowerCase() in keybinds) return;
     keybinds[event.key.toLowerCase()] = false;
 });
 
-// Inventory variables and related keybinds
+// Set up inventory size and current selection
 const INVENTORY_SIZE = 5;
 let inventorySelection = 0;
+
+// Add number keys to keybinds object based on inventory size
 let numberKeys = [];
 for (let i = 0; i < INVENTORY_SIZE; i++) {
     keybinds[(i + 1) + ""] = false;
     numberKeys.push((i + 1) + "");
 }
 
+// Initialize canvas and context
 let canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("2d");
 
+// Set up variables for tracking FPS and TPS, set lastTick to current time because we just started
 let fps = 0;
 let tps = 0;
 let lastTick = Date.now();
 
+// Define debug text to add to screen corner later
 let debugText = fps + " fps, " + tps + " ticks";
 
 let spritesImage = new Image();

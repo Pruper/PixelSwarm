@@ -10,6 +10,44 @@ const MAP_CHUNK_SIZE = 2;
 const MAP_INITIAL_ENTITIES = 100;
 const WORLD_BOUNDARY = 16 / 2 * CHUNK_SIZE;
 
+let keybinds = {
+    "w": false, // up
+    "s": false, // down
+    "a": false, // left
+    "d": false, // right
+    "b": false, // show hitboxes
+    "r": false, // spawn rock entity
+    "shift": false, // switch tile placement
+    "f2": false, // take screenshots
+}
+
+window.addEventListener('keydown', function (event) {
+    if (!event.key.toLowerCase() in keybinds) return;
+
+    if (!keybinds["f2"] && event.key.toLowerCase() == "f2") {
+        screenshot();
+    }
+
+    if (numberKeys.contains(event.key.toLowerCase()) && !keybinds[event.key.toLowerCase]) {
+        inventorySelection = Number.parseInt(event.key.toLowerCase()) - 1;
+    };
+
+    keybinds[event.key.toLowerCase()] = true;
+});
+
+window.addEventListener('keyup', function (event) {
+    if (!event.key.toLowerCase() in keybinds) return;
+    keybinds[event.key.toLowerCase()] = false;
+});
+
+const INVENTORY_SIZE = 5;
+let inventorySelection = 0;
+let numberKeys = [];
+for (let i = 0; i < INVENTORY_SIZE; i++) {
+    keybinds[(i + 1) + ""] = false;
+    numberKeys.push((i + 1) + "");
+}
+
 let canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("2d");
 
@@ -20,7 +58,7 @@ let lastTick = Date.now();
 let debugText = fps + " fps, " + tps + " ticks";
 
 let spritesImage = new Image();
-spritesImage.src = "sprites.png"
+spritesImage.src = "sprites.png";
 spritesheet = new SpriteSheet(spritesImage);
 
 let map = new Map(MAP_CHUNK_SIZE, MAP_INITIAL_ENTITIES);
@@ -28,25 +66,25 @@ let map = new Map(MAP_CHUNK_SIZE, MAP_INITIAL_ENTITIES);
 let playerEntity = new Player(0, 0, 0, Math.round(Math.random()), 15);
 map.addEntity(playerEntity);
 
-let keybinds = {
-    "w": false, // up
-    "s": false, // down
-    "a": false, // left
-    "d": false, // right
-    "b": false, // show hitboxes
-    "r": false, // spawn rock entity
-    "shift": false, // switch tile placement
+function screenshot() {
+    canvas.toBlob(blob => {
+        if (!blob) {
+            console.error('Failed to convert canvas to blob.');
+            return;
+        }
+
+        const item = new ClipboardItem({ 'image/png': blob });
+
+        navigator.clipboard.write([item]).then(
+            () => {
+                console.log('Canvas copied to clipboard successfully!');
+            },
+            err => {
+                console.error('Failed to copy canvas to clipboard: ', err);
+            }
+        );
+    }, 'image/png');
 }
-
-window.addEventListener('keydown', function (event) {
-    if (!event.key.toLowerCase() in keybinds) return;
-    keybinds[event.key.toLowerCase()] = true;
-});
-
-window.addEventListener('keyup', function (event) {
-    if (!event.key.toLowerCase() in keybinds) return;
-    keybinds[event.key.toLowerCase()] = false;
-});
 
 
 function screenPositionFromCoordinates(x, y) {
@@ -91,9 +129,19 @@ canvas.addEventListener("mouseleave", function (e) {
     selectionBox.visible = false;
 });
 
-canvas.addEventListener("click", function (e) {
-    map.setTile(selectionBox.x, selectionBox.y, keybinds["shift"] ? 4 : 3);
+canvas.addEventListener("mousedown", function (e) {
+    if (e.button == 2) {
+        // right click
+        if (map.useItem(selectionBox.x, selectionBox.y, playerEntity.inventory.getItem(inventorySelection))) {
+            playerEntity.inventory.removeFromSlot(inventorySelection, 1);
+        }
+    } else {
+        // left or middle click
+        map.attemptDestroyTile(selectionBox.x, selectionBox.y);
+    }
 });
+
+canvas.oncontextmenu = function (e) { e.preventDefault(); e.stopPropagation(); }
 
 function tick() {
     if (keybinds["r"]) map.addEntity(new Rock(playerEntity.x, playerEntity.y));
@@ -124,6 +172,13 @@ function tick() {
             }
         }
         map.entities[i].fixPosition();
+    }
+
+    for (let i = 0; i < map.entities.length; i++) {
+        if (map.entities[i].removed) { 
+            map.entities.splice(i, 1);
+            i--;
+        }
     }
 
     lastTick = Date.now();
@@ -171,10 +226,6 @@ function pointBoundaryCheck(x, y) {
     */
 
     return { x: x, y: y }
-}
-
-function tileBoundaryCheck(x, y, tileX, tileY) {
-
 }
 
 function resolveCollision(entity1, entity2) {
@@ -239,6 +290,7 @@ function render() {
         }
     }
 
+    playerEntity.inventory.drawAsHotbar();
 
     drawTextWithShadow(ctx, "Position: " + Number(playerEntity.x).toFixed(2) + ", " + Number(playerEntity.y).toFixed(2), 10, 10);
     drawTextWithShadow(ctx, debugText, 10, 35);
@@ -326,6 +378,16 @@ function darkenHexColor(hex, amount) {
 function randomRange(min, max) {
     return (Math.random() * (max - min)) + min;
 }
+
+// utils
+
+Object.defineProperty(Array.prototype, "contains", {
+    configurable: true,
+    writable: true,
+    value: function contains(x) {
+        return this.indexOf(x) !== -1;
+    }
+});
 
 function modFix(n, m) {
     return ((n % m) + m) % m;

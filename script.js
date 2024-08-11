@@ -1,8 +1,11 @@
+// Define game name/version
 const GAME_NAME = "Pixel Swarm"
 const GAME_VERSION = "alpha"
 const GAME_NAMEVER = GAME_NAME + " version " + GAME_VERSION;
+// Add game info and credit to footer
 document.getElementById("footer-information").innerHTML = GAME_NAMEVER + "<br>Made by Pruper";
 
+// Basic variables
 const TICKRATE = 20;
 const PLAYER_SPEED = 4 / TICKRATE;
 
@@ -10,6 +13,7 @@ const MAP_CHUNK_SIZE = 2;
 const MAP_INITIAL_ENTITIES = 100;
 const WORLD_BOUNDARY = 16 / 2 * CHUNK_SIZE;
 
+// Set up keybinds
 let keybinds = {
     "w": false, // up
     "s": false, // down
@@ -21,6 +25,7 @@ let keybinds = {
     "f2": false, // take screenshots
 }
 
+// Key events
 window.addEventListener('keydown', function (event) {
     if (!event.key.toLowerCase() in keybinds) return;
 
@@ -40,6 +45,7 @@ window.addEventListener('keyup', function (event) {
     keybinds[event.key.toLowerCase()] = false;
 });
 
+// Inventory variables and related keybinds
 const INVENTORY_SIZE = 5;
 let inventorySelection = 0;
 let numberKeys = [];

@@ -171,7 +171,9 @@ function tick() {
                 resolveCollision(map.entities[i], map.entities[j]);
             }
         }
-        map.entities[i].fixPosition();
+        const fixedCoords = map.entities[i].fixedPosition();
+        map.entities[i].x = fixedCoords.x;
+        map.entities[i].y = fixedCoords.y;
     }
 
     for (let i = 0; i < map.entities.length; i++) {
@@ -183,49 +185,6 @@ function tick() {
 
     lastTick = Date.now();
     tps++;
-}
-
-const TILE_COLLISION_PADDING = 0.2;
-
-function pointBoundaryCheck(x, y) {
-    if (x < -map.worldBoundary) {
-        x = -map.worldBoundary;
-    } else if (x > map.worldBoundary) {
-        x = map.worldBoundary;
-    }
-
-    if (y < -map.worldBoundary) {
-        y = -map.worldBoundary;
-    } else if (y > map.worldBoundary) {
-        y = map.worldBoundary;
-    }
-
-    /* broken tile collisions lol
-
-    let tileData = TILE_DATA[map.getTile(x, y)];
-    if (tileData.solid) {
-        let tileX = Math.floor(x);
-        let tileY = Math.floor(y);
-
-        let distLeft = x - TILE_COLLISION_PADDING - tileX;
-        let distRight = tileX + 1 + TILE_COLLISION_PADDING - x;
-        let distTop = y - tileY - TILE_COLLISION_PADDING;
-        let distBottom = tileY + 1 + TILE_COLLISION_PADDING - y;
-
-        if (Math.abs(distLeft) < Math.abs(distRight) && Math.abs(distLeft) < Math.abs(distTop) && Math.abs(distLeft) < Math.abs(distBottom)) {
-            x = tileX - 0.001;
-        } else if (Math.abs(distRight) < Math.abs(distTop) && Math.abs(distRight) < Math.abs(distBottom)) {
-            x = tileX + 1 + 0.001;
-        } else if (Math.abs(distTop) < Math.abs(distBottom)) {
-            y = tileY - 0.001;
-        } else {
-            y = tileY + 1 + 0.001;
-        }
-    }
-
-    */
-
-    return { x: x, y: y }
 }
 
 function resolveCollision(entity1, entity2) {

@@ -1,11 +1,18 @@
 const CHUNK_SIZE = 16;
 const TILE_DATA = {
-    0: { x: 0, y: 0, solid: false, name: "Grass" }, // grass tile
-    1: { x: 1, y: 0, solid: false, name: "Rock" }, // rock tile
-    2: { x: 2, y: 0, solid: false, name: "Butter" }, // butter tile
-    3: { x: 3, y: 0, solid: true, name: "Wood" }, // wood tile
-    4: { x: 4, y: 0, solid: false, name: "Floor" },
-    999: { x: 15, y: 15, solid: false, name: "Null" } // null tile
+    0: { x: 15, y: 1, solid: false, break: null, name: "Air" },
+    1: { x: 0, y: 0, solid: false, break: { 1: 1 }, name: "Grass" },
+    6: { x: 0, y: 1, solid: false, break: { 6: 1 }, name: "Dirt" },
+    7: { x: 1, y: 1, solid: false, break: { 6: 1, 4: 6, 5: 2 }, name: "Tree" },
+
+
+    2: { x: 1, y: 0, solid: false, break: { 2: 1 }, name: "Rock" },
+    3: { x: 2, y: 0, solid: false, break: { 3: 1 }, name: "Butter" },
+    4: { x: 3, y: 0, solid: true, break: { 4: 1 }, name: "Wood" },
+    5: { x: 4, y: 0, solid: false, break: { 5: 1 }, name: "Floor" },
+
+
+    999: { x: 15, y: 0, solid: false, break: null, name: "Null" }
 }
 
 class Chunk {
@@ -16,7 +23,7 @@ class Chunk {
 
         for (let i = 0; i < this.tiles.length; i++) {
             const randomNumber = Math.random();
-            this.tiles[i] = randomNumber > 0.999 ? 2 : randomNumber > 0.9 ? 1 : 0;
+            this.tiles[i] = randomNumber > 0.999 ? 3 : randomNumber > 0.96 ? 7 : randomNumber > 0.84 ? 2 : 1;
         }
     }
 
@@ -24,8 +31,29 @@ class Chunk {
         return this.tiles[modFix(x, CHUNK_SIZE) + y * CHUNK_SIZE];
     }
 
-    setInternalTile(x, y, tile) {
+    setInternalTile(x, y, tile, conditional = false) {
+        let previousTile = this.tiles[(modFix(x, CHUNK_SIZE)) + y * CHUNK_SIZE];
+
+        if (conditional && previousTile != 0) {
+            if (previousTile == tile) return false;
+            this.attemptDestroyInternalTile(x, y);
+            // return false; // cant place on another tile (that isn't air)
+        }
         this.tiles[(modFix(x, CHUNK_SIZE)) + y * CHUNK_SIZE] = tile;
+        return true;
+    }
+
+    attemptDestroyInternalTile(x, y) {
+        const tileData = TILE_DATA[this.getInternalTile(x, y)];
+        if (tileData.break == null) return;
+
+        this.setInternalTile(x, y, 0);
+        const keys = Object.keys(tileData.break);
+        for (let i in keys) {
+            for (let c = 0; c < tileData.break[keys[i]]; c++) {
+                map.addEntity(new ItemEntity(this.x * CHUNK_SIZE + x + 0.5, this.y * CHUNK_SIZE + y + 0.5, keys[i]))
+            }
+        }
     }
 
     visible() {
@@ -51,6 +79,72 @@ class Chunk {
     }
 }
 
+class Inventory {
+    constructor(size) {
+        this.size = size;
+        this.items = [];
+        for (let i = 0; i < this.size; i++) {
+            this.items.push(null);
+        }
+    }
+
+    drawAsHotbar(x, y) {
+        for (let slot = 0; slot < this.size; slot++) {
+            spritesheet.draw(ctx, slot === inventorySelection ? 1 : 0, 13, 20 + slot * 75, 400, RENDER_SCALE);
+            drawTextWithShadow(ctx, slot + 1, 45 + slot * 75, 455, "#F0F0B0");
+        }
+
+        // draw this after so items/text is always on top
+        for (let slot = 0; slot < this.size; slot++) {
+            if (this.items[slot] == null) continue;
+            spritesheet.draw(ctx, TILE_DATA[this.items[slot].id].x, TILE_DATA[this.items[slot].id].y, 37.5 + slot * 75, 415, RENDER_SCALE * 0.5);
+            if (this.items[slot].amount != 1) drawTextWithShadow(ctx, this.items[slot].amount, 52.5 + slot * 75, 405, "#FFFFFF", "right");
+        }
+    }
+
+    getItem(slot) {
+        return this.items[slot];
+    }
+
+    setItem(slot, id, amount) {
+        if (!slot in this.items) return;
+        slot[this.items] = { id: id, amount: amount };
+    }
+
+    removeFromSlot(slot, amount) {
+        if (this.items[slot] == null) return;
+        this.items[slot].amount -= amount;
+        if (this.items[slot].amount <= 0) this.items[slot] = null;
+    }
+
+    canFitItem(id, amount) {
+        for (let slot = 0; slot < this.size; slot++) {
+            if (this.items[slot] == null) return true; // empty slot = can fit gauranteed
+            if (this.items[slot].id == id) return true; // same item id = can fit gauranteed
+        }
+        return false;
+    }
+
+    addItem(id, amount) {
+        if (!this.canFitItem(id, amount)) return;
+        for (let slot = 0; slot < this.size; slot++) {
+            if (this.items[slot] == null) continue;
+            if (this.items[slot].id == id) {
+                this.items[slot].amount += amount;
+                return;
+            }
+        }
+
+        // this has to be done after to prevent empty slots getting filled with already held itemss
+        for (let slot = 0; slot < this.size; slot++) {
+            if (this.items[slot] == null) {
+                this.items[slot] = { id: id, amount: amount };
+                return;
+            }
+        }
+    }
+}
+
 const VISIBILITY_PADDING = 0.2;
 
 class Entity {
@@ -64,6 +158,12 @@ class Entity {
         this.spriteX = spriteX;
         this.spriteY = spriteY;
         this.renderScale = 1;
+
+        this.removed = false;
+    }
+
+    remove() {
+        this.removed = true;
     }
 
     visible() {
@@ -102,14 +202,22 @@ class Entity {
 
     drawHitbox(ctx, scale) {
         if (this.hitbox.type == "circle") {
-            const interpolated = this.interpolatedCoordinates();
-            let drawCoords = screenPositionFromCoordinates(interpolated.x, interpolated.y); // center of circle should be in center of entity
+            // const interpolated = this.interpolatedCoordinates();
+            let drawCoords = screenPositionFromCoordinates(this.x, this.y); // center of circle should be in center of entity
 
             ctx.beginPath();
             ctx.arc(drawCoords.x, drawCoords.y, this.hitbox.radius * SPRITE_SIZE * scale, 0, 2 * Math.PI, false);
             ctx.lineWidth = 3;
             ctx.strokeStyle = '#FFFFFF';
             ctx.stroke();
+
+            // collision search bounds
+            const topLeft = screenPositionFromCoordinates(Math.floor(this.x - this.hitbox.radius), Math.floor(this.y - this.hitbox.radius));
+            const bottomRight = screenPositionFromCoordinates(Math.floor(this.x + 1 + this.hitbox.radius), Math.floor(this.y + 1 + this.hitbox.radius));
+
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = "#FF00FF";
+            ctx.strokeRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
         }
     }
 
@@ -120,6 +228,21 @@ class Entity {
         const distance = Math.sqrt(dx * dx + dy * dy);
         const combinedRadius = this.hitbox.radius + otherEntity.hitbox.radius;
         return distance < combinedRadius;
+    }
+}
+
+class Player extends Entity {
+    constructor(x, y, rotation, spriteX, spriteY) {
+        super(x, y, rotation, spriteX, spriteY);
+        this.inventory = new Inventory(INVENTORY_SIZE);
+    }
+
+    collisionCheck(otherEntity) {
+        let result = super.collisionCheck(otherEntity);
+        if (result && otherEntity instanceof ItemEntity) {
+            otherEntity.tryPickup(this);
+        }
+        return result;
     }
 }
 
@@ -144,10 +267,6 @@ class Dummy extends Entity {
     }
 }
 
-class Player extends Entity {
-    // player code here
-}
-
 class Rock extends Entity {
     constructor(x, y) {
         super(x, y, 0, 1, 14);
@@ -163,6 +282,39 @@ class Rock extends Entity {
         super.tick();
         this.movement.x = 0;
         this.movement.y = 0;
+    }
+}
+
+class ItemEntity extends Entity {
+    constructor(x, y, id) {
+        super(x, y, 0, TILE_DATA[id].x, TILE_DATA[id].y);
+        this.id = id;
+        this.hitbox = { type: "circle", radius: 0.1 };
+        this.movement.x = (Math.random() - 0.5) / 4;
+        this.movement.y = (Math.random() - 0.5) / 4;
+        this.renderScale = 0.4;
+    }
+
+    tick() {
+        super.tick();
+        this.movement.x *= 0.8;
+        this.movement.y *= 0.8;
+        this.rotation += 10;
+    }
+
+    collisionCheck(otherEntity) {
+        let result = super.collisionCheck(otherEntity);
+        if (result && otherEntity instanceof Player) {
+            this.tryPickup(otherEntity);
+        }
+        return result;
+    }
+
+    tryPickup(player) {
+        if (this.removed || !player.inventory.canFitItem(this.id, 1)) return;
+
+        player.inventory.addItem(this.id, 1);
+        this.remove();
     }
 }
 
@@ -224,11 +376,23 @@ class Map {
         }
     }
 
-    setTile(x, y, tile) {
+    useItem(x, y, item) {
+        if (item == null) return false;
+        return this.setTile(x, y, item.id, true);
+    }
+
+    setTile(x, y, tile, conditional = false) {
+        x = Math.floor(x); y = Math.floor(y);
+        const chunk = this.getChunkFromTile(x, y);
+        if (!(chunk instanceof Chunk)) return false;
+        return chunk.setInternalTile(modFix(x, CHUNK_SIZE), modFix(y, CHUNK_SIZE), tile, conditional);
+    }
+
+    attemptDestroyTile(x, y, tile) {
         x = Math.floor(x); y = Math.floor(y);
         const chunk = this.getChunkFromTile(x, y);
         if (!(chunk instanceof Chunk)) return;
-        chunk.setInternalTile(modFix(x, CHUNK_SIZE), modFix(y, CHUNK_SIZE), tile);
+        chunk.attemptDestroyInternalTile(modFix(x, CHUNK_SIZE), modFix(y, CHUNK_SIZE));
     }
 
     getTile(x, y) {

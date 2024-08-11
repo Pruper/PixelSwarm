@@ -1,8 +1,11 @@
 const CHUNK_SIZE = 16;
-const TILE_SPRITESHEET_VALUES = {
-    0: { x: 0, y: 0 }, // grass tile
-    1: { x: 1, y: 0 }, // rock tile
-    2: { x: 2, y: 0 } // butter tile
+const TILE_DATA = {
+    0: { x: 0, y: 0, solid: false, name: "Grass" }, // grass tile
+    1: { x: 1, y: 0, solid: false, name: "Rock" }, // rock tile
+    2: { x: 2, y: 0, solid: false, name: "Butter" }, // butter tile
+    3: { x: 3, y: 0, solid: true, name: "Wood" }, // wood tile
+    4: { x: 4, y: 0, solid: false, name: "Floor" },
+    999: { x: 15, y: 15, solid: false, name: "Null" } // null tile
 }
 
 class Chunk {
@@ -15,6 +18,14 @@ class Chunk {
             const randomNumber = Math.random();
             this.tiles[i] = randomNumber > 0.999 ? 2 : randomNumber > 0.9 ? 1 : 0;
         }
+    }
+
+    getInternalTile(x, y) {
+        return this.tiles[modFix(x, CHUNK_SIZE) + y * CHUNK_SIZE];
+    }
+
+    setInternalTile(x, y, tile) {
+        this.tiles[(modFix(x, CHUNK_SIZE)) + y * CHUNK_SIZE] = tile;
     }
 
     visible() {
@@ -31,12 +42,12 @@ class Chunk {
         for (let drawY = 0; drawY < CHUNK_SIZE; drawY++) {
             for (let drawX = 0; drawX < CHUNK_SIZE; drawX++) {
                 let tile = this.tiles[drawY * CHUNK_SIZE + drawX];
-                let spriteLocation = TILE_SPRITESHEET_VALUES[tile];
+                let spriteLocation = TILE_DATA[tile];
                 spritesheet.draw(ctx, spriteLocation.x, spriteLocation.y, drawCoords.x + drawX * SPRITE_SIZE * scale, drawCoords.y + drawY * SPRITE_SIZE * scale, scale);
             }
         }
 
-        drawTextWithShadow(ctx, "chunk " + this.x + ", " + this.y, drawCoords.x + 10, drawCoords.y + 10, "#D7D700");
+        // drawTextWithShadow(ctx, "chunk " + this.x + ", " + this.y, drawCoords.x + 10, drawCoords.y + 10, "#D7D700");
     }
 }
 
@@ -100,6 +111,15 @@ class Entity {
             ctx.strokeStyle = '#FFFFFF';
             ctx.stroke();
         }
+    }
+
+    collisionCheck(otherEntity) {
+        if (this.hitbox.type != "circle" || otherEntity.hitbox.type != "circle") return false;
+        const dx = otherEntity.x - this.x;
+        const dy = otherEntity.y - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const combinedRadius = this.hitbox.radius + otherEntity.hitbox.radius;
+        return distance < combinedRadius;
     }
 }
 
@@ -184,5 +204,61 @@ class SpriteSheet {
         ctx.rotate(rotation * (Math.PI / 180)); // convert to radians
         this.draw(ctx, sheetX, sheetY, -(SPRITE_SIZE * scale) / 2, -(SPRITE_SIZE * scale) / 2, scale);
         ctx.restore();
+    }
+}
+
+class Map {
+    constructor(size, debugEntities) {
+        this.chunks = {};
+        this.entities = [];
+        this.worldBoundary = CHUNK_SIZE / 2 * size;
+
+        for (let cx = -Math.floor(MAP_CHUNK_SIZE / 2); cx < Math.floor(MAP_CHUNK_SIZE / 2); cx++) {
+            for (let cy = -Math.floor(MAP_CHUNK_SIZE / 2); cy < Math.floor(MAP_CHUNK_SIZE / 2); cy++) {
+                this.chunks[cx + ", " + cy] = new Chunk(cx, cy);
+            }
+        }
+
+        for (let i = 0; i < debugEntities; i++) {
+            this.addEntity(new Dummy(randomRange(-this.worldBoundary, this.worldBoundary), randomRange(-this.worldBoundary, this.worldBoundary)));
+        }
+    }
+
+    setTile(x, y, tile) {
+        x = Math.floor(x); y = Math.floor(y);
+        const chunk = this.getChunkFromTile(x, y);
+        if (!(chunk instanceof Chunk)) return;
+        chunk.setInternalTile(modFix(x, CHUNK_SIZE), modFix(y, CHUNK_SIZE), tile);
+    }
+
+    getTile(x, y) {
+        x = Math.floor(x); y = Math.floor(y);
+        const chunk = this.getChunkFromTile(x, y);
+        if (!(chunk instanceof Chunk)) return 999;
+        return chunk.getInternalTile(modFix(x, CHUNK_SIZE), modFix(y, CHUNK_SIZE));
+    }
+
+    getChunk(x, y) {
+        x = Math.floor(x); y = Math.floor(y);
+        return this.chunks[x + ", " + y];
+    }
+
+    getChunkFromTile(x, y) {
+        return this.getChunk(Math.floor(x / CHUNK_SIZE), Math.floor(y / CHUNK_SIZE))
+    }
+
+    addEntity(entity) {
+        if (!(entity instanceof Entity)) return;
+
+        this.entities.push(entity);
+    }
+
+    removeEntity(entity) {
+        if (!(entity instanceof Entity)) return;
+
+        const index = this.entities.indexOf(entity);
+        if (index > -1) {
+            this.entities.splice(index, 1);
+        }
     }
 }

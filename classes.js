@@ -177,7 +177,7 @@ class Entity {
     interpolatedCoordinates() {
         const timeSinceLastTick = Date.now() - lastTick;
         const interpolationFactor = timeSinceLastTick / (1000 / TICKRATE);
-        return pointBoundaryCheck(this.x + this.movement.x * interpolationFactor, this.y + this.movement.y * interpolationFactor);
+        return this.fixedPosition(this.x + this.movement.x * interpolationFactor, this.y + this.movement.y * interpolationFactor, this.hitbox);
     }
 
     tick() {
@@ -185,10 +185,25 @@ class Entity {
         this.y += this.movement.y;
     }
 
-    fixPosition() {
-        const coords = pointBoundaryCheck(this.x, this.y);
-        this.x = coords.x;
-        this.y = coords.y;
+    fixedPosition(thisX = this.x, thisY = this.y) {
+        // thisX and thisY used for interpolated coordinates
+        const firstCoords = map.pointBoundaryCheckHitbox(thisX, thisY, this.hitbox);
+
+        const topLeftSolidX = Math.floor(thisX - this.hitbox.radius);
+        const topLeftSolidY = Math.floor(thisY - this.hitbox.radius);
+        const bottomRightSolidX = Math.floor(thisX + 1 + this.hitbox.radius);
+        const bottomRightSolidY = Math.floor(thisY + 1 + this.hitbox.radius);
+
+        let facesToCheck = [];
+        for (let x = topLeftSolidX; x < bottomRightSolidX; x++) {
+            for (let y = topLeftSolidY; y < bottomRightSolidY; y++) {
+                facesToCheck = facesToCheck.concat(map.createTileFaces(x, y));
+            }
+        }
+
+        const secondCoords = map.pointBoundaryCheckFaces(firstCoords.x, firstCoords.y, this.hitbox, facesToCheck);
+
+        return { x: secondCoords.x, y: secondCoords.y };
     }
 
     draw(ctx, spritesheet, scale) {
@@ -424,5 +439,94 @@ class Map {
         if (index > -1) {
             this.entities.splice(index, 1);
         }
+    }
+
+    pointBoundaryCheck(x, y) {
+        if (x < -map.worldBoundary) {
+            x = -map.worldBoundary;
+        } else if (x > map.worldBoundary) {
+            x = map.worldBoundary;
+        }
+
+        if (y < -map.worldBoundary) {
+            y = -map.worldBoundary;
+        } else if (y > map.worldBoundary) {
+            y = map.worldBoundary;
+        }
+
+        return { x: x, y: y }
+    }
+
+    pointBoundaryCheckHitbox(x, y, hitbox) {
+        if (hitbox == null || hitbox.type != "circle") return this.pointBoundaryCheck(x, y);
+
+        if (x - hitbox.radius < -map.worldBoundary) {
+            x = -map.worldBoundary + hitbox.radius;
+        } else if (x + hitbox.radius > map.worldBoundary) {
+            x = map.worldBoundary - hitbox.radius;
+        }
+
+        if (y - hitbox.radius < -map.worldBoundary) {
+            y = -map.worldBoundary + hitbox.radius;
+        } else if (y + hitbox.radius > map.worldBoundary) {
+            y = map.worldBoundary - hitbox.radius;
+        }
+
+        return { x: x, y: y }
+    }
+
+    createTileFaces(x, y) {
+        if (!TILE_DATA[this.getTile(x, y)].solid) return [];
+        return [{ x: x, y: y, length: 1, collider: "top"}, { x: x, y: y + 1, length: 1, collider: "bottom"}, { x: x, y: y, length: 1, collider: "left"}, { x: x + 1, y: y, length: 1, collider: "right"}];
+    }
+
+    pointBoundaryCheckFaces(x, y, hitbox, faces) {
+        let coords = { x: x, y: y};
+        for (let i = 0; i < faces.length; i++) {
+            coords = this.pointBoundaryCheckFace(coords.x, coords.y, hitbox, faces[i]);
+        }
+        return coords;
+    }
+
+    pointBoundaryCheckFace(x, y, hitbox, face) {
+        if (hitbox == null || hitbox.type !== "circle") {
+            return this.pointBoundaryCheck(x, y);
+        }
+    
+        const hitboxLeft = x - hitbox.radius;
+        const hitboxRight = x + hitbox.radius;
+        const hitboxTop = y - hitbox.radius;
+        const hitboxBottom = y + hitbox.radius;
+    
+        if (face.collider === "top") {
+            if (hitboxBottom >= face.y && face.x <= x && face.x + face.length >= x) {
+                if (hitboxTop <= face.y + 0.01) {
+                    y = face.y - hitbox.radius;
+                }
+            }
+        } else if (face.collider === "bottom") {
+            if (hitboxTop <= face.y && face.x <= x && face.x + face.length >= x) {
+                // Ensure hitbox overlaps with the face
+                if (hitboxBottom >= face.y - 0.01) {
+                    y = face.y + hitbox.radius;
+                }
+            }
+        } else if (face.collider === "left") {
+            if (hitboxLeft <= face.x && face.y <= y && face.y + face.length >= y) {
+                // Ensure hitbox overlaps with the face
+                if (hitboxRight >= face.x - 0.01) {
+                    x = face.x - hitbox.radius;
+                }
+            }
+        } else if (face.collider === "right") {
+            if (hitboxRight >= face.x && face.y <= y && face.y + face.length >= y) {
+                // Ensure hitbox overlaps with the face
+                if (hitboxLeft <= face.x + 0.01) {
+                    x = face.x + hitbox.radius;
+                }
+            }
+        }
+    
+        return { x: x, y: y };
     }
 }

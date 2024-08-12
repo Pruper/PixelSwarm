@@ -14,11 +14,14 @@ const TILE_DATA = {
     11: { x: 0, y: 2, hardness: 2, solid: true, break: [{ id: 11, amount: 1 }], name: "Metal" },
 
     13: { x: 2, y: 2, hardness: 9999, solid: false, speedModifier: 0.5, break: null, name: "Water" },
-    14: { x: 3, y: 2, hardness: 9999, solid: false, break: [{ id: 14, amount: 1 }], name: "Explosion-proof Rock" },
+    14: { x: 3, y: 2, hardness: 9999, solid: true, break: [{ id: 14, amount: 1 }], name: "Explosion-proof Rock" },
+    16: { x: 0, y: 3, solid: false, speedModifier: 3, break: [{ id: 16, amount: 1 }], name: "Speed Road" },
 
     8: { x: 2, y: 1, solid: false, break: [{ id: 8, amount: 1 }], explosionPower: 2, name: "TNT" },
     9: { x: 3, y: 1, solid: false, break: [{ id: 9, amount: 1 }], explosionPower: 4, name: "C4" },
     10: { x: 4, y: 1, solid: false, break: [{ id: 10, amount: 1 }], explosionPower: 8, name: "Nuclear Bomb" },
+
+    15: { x: 4, y: 2, solid: true, break: [{ id: 16, min: 16, max: 32 }, { id: 8, min: 32, max: 64 }, { id: 9, min: 32, max: 64 }, { id: 10, min: 32, max: 64 }], name: "Supply Crate" },
 
     999: { x: 15, y: 0, solid: false, break: null, name: "Null" }
 }
@@ -33,7 +36,7 @@ class Chunk {
         this.tiles = new Array(CHUNK_SIZE * CHUNK_SIZE).fill(0);
 
         for (let i = 0; i < this.tiles.length; i++) {
-            const randomNumber = Math.random();
+            const randomNumber = Math.random(); // 3: butter, 7: tree, 2: rock, 1: grass
             this.tiles[i] = randomNumber > 0.999 ? 3 : randomNumber > 0.96 ? 7 : randomNumber > 0.84 ? 2 : 1;
         }
     }
@@ -179,7 +182,7 @@ class Inventory {
         for (let slot = 0; slot < this.size; slot++) {
             if (this.items[slot] == null) continue;
             spritesheet.draw(ctx, TILE_DATA[this.items[slot].id].x, TILE_DATA[this.items[slot].id].y, 37.5 + slot * 75, 415, RENDER_SCALE * 0.5);
-            if (this.items[slot].amount != 1) drawTextWithShadow(ctx, this.items[slot].amount, 52.5 + slot * 75, 405, "#FFFFFF", "right");
+            if (this.items[slot].amount != 1) drawTextWithShadow(ctx, this.items[slot].amount, 52.5 + slot * 75, 405, "#FFFFFF", "center");
         }
 
         if (this.getItem(inventorySelection) != null) {
@@ -332,32 +335,32 @@ class Entity {
         const { x, y } = this;
         const { radius } = this.hitbox;
         const tileSize = 1;
-    
+
         let tiles = [];
         const [minX, maxX, minY, maxY] = [
             Math.floor(x - radius), Math.ceil(x + radius),
             Math.floor(y - radius), Math.ceil(y + radius)
         ];
-    
+
         for (let tx = minX; tx <= maxX; tx++) {
             for (let ty = minY; ty <= maxY; ty++) {
                 const tileLeft = tx;
                 const tileRight = tx + tileSize;
                 const tileTop = ty;
                 const tileBottom = ty + tileSize;
-    
+
                 // does tile overlap?
                 const nearestX = Math.max(tileLeft, Math.min(x, tileRight));
                 const nearestY = Math.max(tileTop, Math.min(y, tileBottom));
                 const distanceX = x - nearestX;
                 const distanceY = y - nearestY;
-    
+
                 if (Math.hypot(distanceX, distanceY) <= radius) {
                     tiles.push(map.getTile(tx, ty));
                 }
             }
         }
-    
+
         return tiles;
     }
 

@@ -2,15 +2,19 @@ const CHUNK_SIZE = 16;
 const TILE_DATA = {
     0: { x: 15, y: 1, solid: false, break: null, name: "Air" },
 
-    1: { x: 0, y: 0, solid: false, break: [{ id: 1, amount: 1 }], name: "Grass" },
+    1: { x: 0, y: 0, solid: false, break: [{ id: 6, amount: 1 }], name: "Grass" },
     6: { x: 0, y: 1, solid: false, break: [{ id: 6, amount: 1 }], name: "Dirt" },
-    7: { x: 1, y: 1, solid: false, break: [{ id: 6, amount: 1 }, { id: 4, min: 5, max: 7 }, { id: 5, min: 1, max: 3 }], name: "Tree" },
+    12: { x: 1, y: 2, solid: false, break: [{ id: 12, amount: 1 }], name: "Tree Sapling" },
+    7: { x: 1, y: 1, solid: true, break: [{ id: 12, amount: 1 }, { id: 4, min: 5, max: 7 }, { id: 5, min: 1, max: 3 }], name: "Tree" },
 
     2: { x: 1, y: 0, solid: false, break: [{ id: 2, amount: 1 }, { id: 11, amount: 1, chance: 0.1 }], name: "Rock" },
     3: { x: 2, y: 0, solid: false, break: [{ id: 3, amount: 1 }], name: "Butter" },
     4: { x: 3, y: 0, hardness: 0.5, solid: true, break: [{ id: 4, amount: 1 }], name: "Wood" },
     5: { x: 4, y: 0, solid: false, break: [{ id: 5, amount: 1 }], name: "Floor" },
     11: { x: 0, y: 2, hardness: 2, solid: true, break: [{ id: 11, amount: 1 }], name: "Metal" },
+
+    13: { x: 2, y: 2, hardness: 9999, solid: false, speedModifier: 0.5, break: null, name: "Water" },
+    14: { x: 3, y: 2, hardness: 9999, solid: false, break: [{ id: 14, amount: 1 }], name: "Explosion-proof Rock" },
 
     8: { x: 2, y: 1, solid: false, break: [{ id: 8, amount: 1 }], explosionPower: 2, name: "TNT" },
     9: { x: 3, y: 1, solid: false, break: [{ id: 9, amount: 1 }], explosionPower: 4, name: "C4" },
@@ -51,6 +55,7 @@ class Chunk {
             // return false; // cant place on another tile (that isn't air)
         }
         this.tiles[(modFix(x, CHUNK_SIZE)) + y * CHUNK_SIZE] = tile;
+        this.onUpdate(x, y, true);
         return true;
     }
 
@@ -88,6 +93,48 @@ class Chunk {
             }
             */
         }
+    }
+
+    tickInternalTile(x, y) {
+        const tile = this.getInternalTile(x, y);
+        const mapCoords = this.getInternalTileMapCoordinates(x, y);
+
+        switch (tile) {
+            case (6): // dirt turns to grass if borders grass
+                if (map.getTile(mapCoords.x + 1, mapCoords.y) === 1 || map.getTile(mapCoords.x - 1, mapCoords.y) === 1 || map.getTile(mapCoords.x, mapCoords.y + 1) === 1 || map.getTile(mapCoords.x, mapCoords.y - 1) === 1) {
+                    this.setInternalTile(x, y, 1);
+                }
+                break;
+            case (12): // saplings grow into trees
+                this.setInternalTile(x, y, 7);
+                break;
+        }
+
+        return false;
+    }
+
+    updateInternalTile(x, y) {
+        const tile = this.getInternalTile(x, y);
+        const mapCoords = this.getInternalTileMapCoordinates(x, y);
+
+        switch (tile) {
+            case (0): // water spreads to air
+                if (map.getTile(mapCoords.x + 1, mapCoords.y) === 13 || map.getTile(mapCoords.x - 1, mapCoords.y) === 13 || map.getTile(mapCoords.x, mapCoords.y + 1) === 13 || map.getTile(mapCoords.x, mapCoords.y - 1) === 13) {
+                    this.setInternalTile(x, y, 13);
+                    return true;
+                }
+        }
+
+        return false;
+    }
+
+    onUpdate(x, y, includeThis = false) {
+        const mapCoords = this.getInternalTileMapCoordinates(x, y);
+        if (includeThis) map.markForUpdate(mapCoords.x, mapCoords.y);
+        map.markForUpdate(mapCoords.x + 1, mapCoords.y);
+        map.markForUpdate(mapCoords.x - 1, mapCoords.y);
+        map.markForUpdate(mapCoords.x, mapCoords.y + 1);
+        map.markForUpdate(mapCoords.x, mapCoords.y - 1);
     }
 
     visible() {
@@ -183,6 +230,7 @@ class Inventory {
     }
 }
 
+const NOCLIP_CHECK_STEP_SIZE = 0.2;
 const VISIBILITY_PADDING = 0.2;
 
 class Entity {
@@ -216,22 +264,113 @@ class Entity {
     interpolatedCoordinates() {
         const timeSinceLastTick = Date.now() - lastTick;
         const interpolationFactor = timeSinceLastTick / (1000 / TICKRATE);
-        return this.fixedPosition(this.x + this.movement.x * interpolationFactor, this.y + this.movement.y * interpolationFactor, this.hitbox);
+        let interpolatedX = this.x;
+        let interpolatedY = this.y;
+
+        let remainingX = this.movement.x * this.getTileSpeedModifier() * interpolationFactor;
+        let remainingY = this.movement.y * this.getTileSpeedModifier() * interpolationFactor;
+
+        while (remainingX || remainingY) {
+            const stepX = Math.sign(remainingX) * Math.min(Math.abs(remainingX), NOCLIP_CHECK_STEP_SIZE);
+            const stepY = Math.sign(remainingY) * Math.min(Math.abs(remainingY), NOCLIP_CHECK_STEP_SIZE);
+
+            const { x, y } = this.fixedPosition(interpolatedX + stepX, interpolatedY + stepY, this.hitbox);
+            interpolatedX = x;
+            interpolatedY = y;
+
+            remainingX -= stepX;
+            remainingY -= stepY;
+        }
+
+        return { x: interpolatedX, y: interpolatedY };
+    }
+
+    getTileSpeedModifier() {
+        const standingOnTiles = this.getOverlappingTiles();
+        let speeds = [];
+
+        for (let i = 0; i < standingOnTiles.length; i++) {
+            const tileType = standingOnTiles[i];
+            if (!("speedModifier" in TILE_DATA[tileType])) continue;
+            const speedModifier = TILE_DATA[tileType].speedModifier;
+            speeds.push(speedModifier);
+        }
+
+        if (speeds.length < 1) return 1;
+        return speeds.reduce((a, b) => a + b) / speeds.length;
     }
 
     tick() {
-        this.x += this.movement.x;
-        this.y += this.movement.y;
+        let { x: dx, y: dy } = this.movement;
+        const speedModifier = this.getTileSpeedModifier();
+        dx *= speedModifier;
+        dy *= speedModifier;
+
+        let foundCollision = {};
+
+        while (dx || dy) {
+            const stepX = Math.sign(dx) * Math.min(Math.abs(dx), NOCLIP_CHECK_STEP_SIZE);
+            const stepY = Math.sign(dy) * Math.min(Math.abs(dy), NOCLIP_CHECK_STEP_SIZE);
+
+            const { x, y, collided } = this.fixedPosition(this.x + stepX, this.y + stepY);
+            this.x = x;
+            this.y = y;
+            foundCollision[collided] = true;
+
+            dx -= stepX;
+            dy -= stepY;
+        }
+
+        if (foundCollision["border"]) this.onBorderCollide();
+        if (foundCollision["tile"]) this.onTileCollide();
+    }
+
+    onBorderCollide() { };
+    onTileCollide() { };
+
+    getOverlappingTiles() {
+        const { x, y } = this;
+        const { radius } = this.hitbox;
+        const tileSize = 1;
+    
+        let tiles = [];
+        const [minX, maxX, minY, maxY] = [
+            Math.floor(x - radius), Math.ceil(x + radius),
+            Math.floor(y - radius), Math.ceil(y + radius)
+        ];
+    
+        for (let tx = minX; tx <= maxX; tx++) {
+            for (let ty = minY; ty <= maxY; ty++) {
+                const tileLeft = tx;
+                const tileRight = tx + tileSize;
+                const tileTop = ty;
+                const tileBottom = ty + tileSize;
+    
+                // does tile overlap?
+                const nearestX = Math.max(tileLeft, Math.min(x, tileRight));
+                const nearestY = Math.max(tileTop, Math.min(y, tileBottom));
+                const distanceX = x - nearestX;
+                const distanceY = y - nearestY;
+    
+                if (Math.hypot(distanceX, distanceY) <= radius) {
+                    tiles.push(map.getTile(tx, ty));
+                }
+            }
+        }
+    
+        return tiles;
     }
 
     fixedPosition(thisX = this.x, thisY = this.y) {
+        let collided = "none";
         // thisX and thisY used for interpolated coordinates
         const firstCoords = map.pointBoundaryCheckHitbox(thisX, thisY, this.hitbox);
+        if (thisX != firstCoords.x || thisY != firstCoords.y) collided = "border";
 
-        const topLeftSolidX = Math.floor(thisX - this.hitbox.radius);
-        const topLeftSolidY = Math.floor(thisY - this.hitbox.radius);
-        const bottomRightSolidX = Math.floor(thisX + 1 + this.hitbox.radius);
-        const bottomRightSolidY = Math.floor(thisY + 1 + this.hitbox.radius);
+        const topLeftSolidX = Math.floor(firstCoords.x - this.hitbox.radius);
+        const topLeftSolidY = Math.floor(firstCoords.y - this.hitbox.radius);
+        const bottomRightSolidX = Math.floor(firstCoords.x + 1 + this.hitbox.radius);
+        const bottomRightSolidY = Math.floor(firstCoords.y + 1 + this.hitbox.radius);
 
         let facesToCheck = [];
         for (let x = topLeftSolidX; x < bottomRightSolidX; x++) {
@@ -241,8 +380,9 @@ class Entity {
         }
 
         const secondCoords = map.pointBoundaryCheckFaces(firstCoords.x, firstCoords.y, this.hitbox, facesToCheck);
+        if (firstCoords.x != secondCoords.x || firstCoords.y != secondCoords.y) collided = "tile";
 
-        return { x: secondCoords.x, y: secondCoords.y };
+        return { x: secondCoords.x, y: secondCoords.y, collided: collided };
     }
 
     draw(ctx, spritesheet, scale, pixelOffsetX = 0, pixelOffsetY = 0) {
@@ -285,21 +425,74 @@ class Entity {
     }
 }
 
-class Player extends Entity {
+class LivingEntity extends Entity {
+    constructor(x, y, rotation, spriteX, spriteY) {
+        super(x, y, rotation, spriteX, spriteY);
+        this.health = 100;
+        this.hurtTime = 0;
+    }
+
+    damage(amount) {
+        if (this.hurtTime > 0) return;
+        this.health -= amount;
+        this.hurtTime += TICKRATE / 4;
+    }
+
+    projectileHit(projectileEntity) {
+        if (!projectileEntity.removed) {
+            this.damage(projectileEntity.damage)
+        }
+    }
+
+    draw(ctx, spritesheet, scale) {
+        super.draw(ctx, spritesheet, scale);
+        // draw health
+        //const interpolated = this.interpolatedCoordinates();
+        //const drawPos = screenPositionFromCoordinates(interpolated.x, interpolated.y);
+        //drawTextWithShadow(ctx, "❤︎ " + this.health, drawPos.x, drawPos.y - 60, "#F00000", "center");
+    }
+
+    tick() {
+        super.tick();
+        if (this.hurtTime > 0) this.hurtTime--;
+        if (this.health <= 0) this.remove();
+    }
+}
+
+class Player extends LivingEntity {
     constructor(x, y, rotation, spriteX, spriteY) {
         super(x, y, rotation, spriteX, spriteY);
         this.inventory = new Inventory(INVENTORY_SIZE);
+        this.displayName = "You";
+    }
+
+    draw(ctx, spritesheet, scale) {
+        const interpolated = this.interpolatedCoordinates();
+        if (this.inventory.getItem(inventorySelection) != null) {
+            const itemDrawLocation = coordinatesAlongAngle(interpolated.x - (0.5 * 0.6), interpolated.y - (0.5 * 0.6), 0.3, this.rotation - 90);
+            const renderLocation = screenPositionFromCoordinates(itemDrawLocation.x, itemDrawLocation.y);
+            const itemData = TILE_DATA[this.inventory.getItem(inventorySelection).id];
+            spritesheet.drawRotated(ctx, itemData.x, itemData.y, renderLocation.x, renderLocation.y, this.rotation - 90, RENDER_SCALE * 0.6);
+        }
+        /* use for later
+        if (this.displayName != "") {
+            const nameLocation = screenPositionFromCoordinates(interpolated.x, interpolated.y);
+            drawTextWithShadow(ctx, this.displayName, nameLocation.x, nameLocation.y - 90, "#FFFFFF", "center");
+        }
+        */
+
+        super.draw(ctx, spritesheet, scale);
     }
 
     dropItem(amount) {
         if (this.inventory.getItem(inventorySelection) == null) return;
         const item = this.inventory.getItem(inventorySelection);
-        const spawnLocation = coordinatesAlongAngle(this.x, this.y, 1, this.rotation - 90);
+        const spawnLocation = coordinatesAlongAngle(this.x, this.y, 0.2, this.rotation - 90);
 
         let entity = new ItemEntity(spawnLocation.x, spawnLocation.y, item.id, Math.min(item.amount, amount));
         entity.throwDelay = TICKRATE * 1;
-        entity.movement.x = -(this.x - spawnLocation.x) / 5;
-        entity.movement.y = -(this.y - spawnLocation.y) / 5;
+        entity.movement.x = -(this.x - spawnLocation.x) * 2;
+        entity.movement.y = -(this.y - spawnLocation.y) * 2;
         map.addEntity(entity);
 
         this.inventory.removeFromSlot(inventorySelection, amount);
@@ -314,7 +507,7 @@ class Player extends Entity {
     }
 }
 
-class Dummy extends Entity {
+class Dummy extends LivingEntity {
     constructor(x, y) {
         const speed = randomRange(2 / TICKRATE, 6 / TICKRATE);
         super(x, y, 0, speed >= 5 / TICKRATE ? 5 : speed >= 4 / TICKRATE ? 4 : speed >= 3 / TICKRATE ? 3 : 2, 15);
@@ -424,6 +617,44 @@ class ItemEntity extends Entity {
     }
 }
 
+class Projectile extends Entity {
+    constructor(x, y, angle, velocity, spriteX, spriteY) {
+        super(x, y, angle, spriteX, spriteY);
+        this.renderScale = 0.5;
+        this.collisionChannel = "projectile";
+        this.collisionTimer = TICKRATE * 0.5;
+        this.lifetime = TICKRATE * 10;
+
+        const movement = coordinatesAlongAngle(0, 0, velocity, angle - 90);
+        this.movement.x = movement.x;
+        this.movement.y = movement.y;
+        this.rotation = angle;
+    }
+
+    tick() {
+        super.tick();
+        if (this.collisionTimer > 0) this.collisionTimer--;
+        this.lifetime--;
+        if (this.lifetime <= 0) this.remove();
+    }
+
+    collisionCheck(otherEntity) {
+        let result = super.collisionCheck(otherEntity);
+        if (otherEntity instanceof Projectile) return;
+        if (this.collisionTimer > 0) return;
+        if (result) this.remove();
+        return result;
+    }
+
+    onTileCollide() {
+        this.remove();
+    }
+
+    onBorderCollide() {
+        this.remove();
+    }
+}
+
 
 const SPRITE_SIZE = 16;
 
@@ -465,13 +696,16 @@ class SpriteSheet {
     }
 }
 
+const RANDOM_TILE_TICKS = 2;
 const EXPLOSION_CYCLES_PER_TICK = 2;
 
 class Map {
     constructor(size, debugEntities) {
+        this.size = size;
         this.chunks = {};
         this.entities = [];
         this.explosions = [];
+        this.updatesQueued = new Set();
         this.worldBoundary = CHUNK_SIZE / 2 * size;
 
         for (let cx = -Math.floor(MAP_CHUNK_SIZE / 2); cx < Math.floor(MAP_CHUNK_SIZE / 2); cx++) {
@@ -480,8 +714,29 @@ class Map {
             }
         }
 
+
         for (let i = 0; i < debugEntities; i++) {
             this.addEntity(new Dummy(randomRange(-this.worldBoundary, this.worldBoundary), randomRange(-this.worldBoundary, this.worldBoundary)));
+        }
+    }
+
+    generateFeatures() {
+        const waterPoolAmount = randomRangeInteger(12, 16);
+        for (let i = 0; i < waterPoolAmount; i++) {
+            let center = this.randomTileLocation();
+            let radius = Math.floor(Math.random() * 3) + 2; // random radius between 2 and 4
+
+            for (let x = center.x - radius; x <= center.x + radius; x++) {
+                for (let y = center.y - radius; y <= center.y + radius; y++) {
+                    let distance = Math.sqrt((x - center.x) ** 2 + (y - center.y) ** 2);
+
+                    if (distance < radius - 0.5) {
+                        this.setTile(x, y, 13); // water
+                    } else if (distance < radius + 0.5) {
+                        this.setTile(x, y, 14); // hard rock
+                    }
+                }
+            }
         }
     }
 
@@ -494,6 +749,39 @@ class Map {
                 this.explosions.splice(0, 1);
             }
         }
+
+        const thisTickUpdates = new Set(this.updatesQueued);
+        thisTickUpdates.forEach((tile) => {
+            const chunk = this.getChunkFromTile(tile.x, tile.y);
+            if (!(chunk instanceof Chunk)) {
+                this.updatesQueued.delete(tile);
+                return;
+            }
+            if (chunk.updateInternalTile(modFix(tile.x, CHUNK_SIZE), modFix(tile.y, CHUNK_SIZE))) {
+                this.markForUpdate(tile.x + 1, tile.y);
+                this.markForUpdate(tile.x - 1, tile.y);
+                this.markForUpdate(tile.x, tile.y + 1);
+                this.markForUpdate(tile.x, tile.y - 1);
+            }
+            ups++;
+            this.updatesQueued.delete(tile);
+        });
+
+        // tile ticks
+        for (let i = 0; i < RANDOM_TILE_TICKS; i++) {
+            const randomLocation = this.randomTileLocation();
+            const chunk = this.getChunkFromTile(randomLocation.x, randomLocation.y);
+            if (!(chunk instanceof Chunk)) return;
+            chunk.tickInternalTile(modFix(randomLocation.x, CHUNK_SIZE), modFix(randomLocation.y, CHUNK_SIZE));
+        }
+    }
+
+    markForUpdate(x, y) {
+        this.updatesQueued.add({ x: x, y: y })
+    }
+
+    randomTileLocation() {
+        return { x: Math.floor(randomRange(-(this.size / 2) * CHUNK_SIZE, (this.size / 2) * CHUNK_SIZE)), y: Math.floor(randomRange(-(this.size / 2) * CHUNK_SIZE, (this.size / 2) * CHUNK_SIZE)) };
     }
 
     markForExplosion(x, y, explosionPower) {
@@ -511,7 +799,7 @@ class Map {
             this.setTile(x, y, 0);
         }
 
-        chunk.explodeInternalTile(modFix(x, CHUNK_SIZE), modFix(y, CHUNK_SIZE), explosionPower)
+        chunk.explodeInternalTile(modFix(x, CHUNK_SIZE), modFix(y, CHUNK_SIZE), explosionPower);
     }
 
     useItem(x, y, item) {
@@ -545,7 +833,7 @@ class Map {
     getTile(x, y) {
         x = Math.floor(x); y = Math.floor(y);
         const chunk = this.getChunkFromTile(x, y);
-        if (!(chunk instanceof Chunk)) return 999;
+        if (!(chunk instanceof Chunk)) return 999; // null tile
         return chunk.getInternalTile(modFix(x, CHUNK_SIZE), modFix(y, CHUNK_SIZE));
     }
 

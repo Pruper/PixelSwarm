@@ -29,7 +29,7 @@ let keybinds = {
 
     "b": false, // show hitboxes
     "r": false, // spawn rock entity
-    "n": false, // give bombs
+    "n": false, // give debug items
     "shift": false, // switch tile placement
     "f2": false, // take screenshots
 }
@@ -44,12 +44,9 @@ window.addEventListener('keydown', function (event) {
         screenshot();
     }
 
-    // Give debug items (bombs)
+    // Give debug items
     if (!keybinds["n"] && event.key.toLowerCase() == "n") {
-        playerEntity.inventory.addItem(8, 5);
-        playerEntity.inventory.addItem(9, 5);
-        playerEntity.inventory.addItem(10, 5);
-        playerEntity.inventory.addItem(11, 5);
+        playerEntity.inventory.addItem(15, 1);
     }
 
     // Switch inventory slot if number is valid
@@ -216,7 +213,7 @@ function tick() {
     }
 
     for (let i = 0; i < map.entities.length; i++) {
-        if (map.entities[i].removed) { 
+        if (map.entities[i].removed) {
             map.entities.splice(i, 1);
             i--;
         }

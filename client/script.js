@@ -25,6 +25,8 @@ let keybinds = {
     "arrowleft": false, // left (alternate)
     "arrowright": false, // right (alternate)
 
+    " ": false, // drop item
+
     "b": false, // show hitboxes
     "r": false, // spawn rock entity
     "n": false, // give bombs
@@ -176,6 +178,7 @@ canvas.oncontextmenu = function (e) { e.preventDefault(); e.stopPropagation(); }
 
 function tick() {
     if (keybinds["r"]) map.addEntity(new Rock(playerEntity.x, playerEntity.y));
+    if (keybinds[" "]) playerEntity.dropItem(1); // space key
 
     // map ticking
     map.tick();
@@ -202,7 +205,7 @@ function tick() {
     for (let i = 0; i < map.entities.length; i++) {
         for (let j = i + 1; j < map.entities.length; j++) {
             if (map.entities[i].collisionCheck(map.entities[j])) {
-                resolveCollision(map.entities[i], map.entities[j]);
+                if (map.entities[i].collisionChannel === map.entities[j].collisionChannel) resolveCollision(map.entities[i], map.entities[j]);
             }
         }
         const fixedCoords = map.entities[i].fixedPosition();
@@ -345,6 +348,16 @@ function newCoordinates(x1, y1, x2, y2, distance) {
     return { x: newX, y: newY };
 }
 
+function coordinatesAlongAngle(x, y, distance, angle) {
+    const radians = (angle * Math.PI) / 180;
+
+    // inverted y axis
+    const newX = x + distance * Math.cos(radians);
+    const newY = y + distance * Math.sin(radians);
+
+    return { x: newX, y: newY };
+}
+
 function getAngleTowards(x1, y1, x2, y2) {
     let x = x2 - x1;
     let y = y2 - y1;
@@ -370,6 +383,10 @@ function darkenHexColor(hex, amount) {
 
 function randomRange(min, max) {
     return (Math.random() * (max - min)) + min;
+}
+
+function randomRangeInteger(min, max) {
+    return Math.floor(randomRange(min, max + 1));
 }
 
 // utils

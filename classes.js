@@ -455,7 +455,7 @@ class Map {
 
         // chained explosion
         if (TILE_DATA[this.getTile(x, y)].explosionPower) {
-            explosionPower += TILE_DATA[this.getTile(x, y)].explosionPower;
+            explosionPower = Math.max(explosionPower, TILE_DATA[this.getTile(x, y)].explosionPower);
             this.setTile(x, y, 0);
         }
 

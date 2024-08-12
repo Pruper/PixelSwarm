@@ -19,6 +19,12 @@ let keybinds = {
     "s": false, // down
     "a": false, // left
     "d": false, // right
+
+    "arrowup": false, // up (alternate)
+    "arrowdown": false, // down (alternate)
+    "arrowleft": false, // left (alternate)
+    "arrowright": false, // right (alternate)
+
     "b": false, // show hitboxes
     "r": false, // spawn rock entity
     "n": false, // give bombs
@@ -183,10 +189,10 @@ function tick() {
     playerEntity.movement.x = 0;
     playerEntity.movement.y = 0;
 
-    if (keybinds["w"]) playerEntity.movement.y -= PLAYER_SPEED;
-    if (keybinds["s"]) playerEntity.movement.y += PLAYER_SPEED;
-    if (keybinds["a"]) playerEntity.movement.x -= PLAYER_SPEED;
-    if (keybinds["d"]) playerEntity.movement.x += PLAYER_SPEED;
+    if (keybinds["w"] || keybinds["arrowup"]) playerEntity.movement.y -= PLAYER_SPEED;
+    if (keybinds["s"] || keybinds["arrowdown"]) playerEntity.movement.y += PLAYER_SPEED;
+    if (keybinds["a"] || keybinds["arrowleft"]) playerEntity.movement.x -= PLAYER_SPEED;
+    if (keybinds["d"] || keybinds["arrowright"]) playerEntity.movement.x += PLAYER_SPEED;
 
     const normalized = normalizeVector(playerEntity.movement.x, playerEntity.movement.y, PLAYER_SPEED);
 

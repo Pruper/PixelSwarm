@@ -82,19 +82,21 @@ for (let i = 0; i < INVENTORY_SIZE; i++) {
 let canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("2d");
 
-// Set up variables for tracking FPS and TPS, set lastTick to current time because we just started
+// Set up variables for tracking FPS, TPS, and Updates, set lastTick to current time because we just started
 let fps = 0;
 let tps = 0;
+let ups = 0;
 let lastTick = Date.now();
 
 // Define debug text to add to screen corner later
-let debugText = fps + " fps, " + tps + " ticks";
+let debugText = fps + " fps, " + tps + " ticks, " + ups + " tile updates";
 
 let spritesImage = new Image();
 spritesImage.src = "sprites.png";
 spritesheet = new SpriteSheet(spritesImage);
 
 let map = new Map(MAP_CHUNK_SIZE, MAP_INITIAL_ENTITIES);
+map.generateFeatures();
 
 let playerEntity = new Player(0, 0, 0, Math.round(Math.random()), 15);
 map.addEntity(playerEntity);
@@ -177,7 +179,7 @@ canvas.addEventListener("mousedown", function (e) {
 canvas.oncontextmenu = function (e) { e.preventDefault(); e.stopPropagation(); }
 
 function tick() {
-    if (keybinds["r"]) map.addEntity(new Rock(playerEntity.x, playerEntity.y));
+    if (keybinds["r"]) map.addEntity(new Projectile(playerEntity.x, playerEntity.y, playerEntity.rotation, 1, 1, 14));
     if (keybinds[" "]) playerEntity.dropItem(1); // space key
 
     // map ticking
@@ -291,21 +293,23 @@ function render() {
     drawTextWithShadow(ctx, "Position: " + Number(playerEntity.x).toFixed(2) + ", " + Number(playerEntity.y).toFixed(2), 10, 10);
     drawTextWithShadow(ctx, debugText, 10, 35);
     drawTextWithShadow(ctx, renderedEntities + " / " + map.entities.length + " entities rendered", 10, 60);
+    drawTextWithShadow(ctx, "Player speed: " + playerEntity.getTileSpeedModifier(), 10, 85);
 
     fps++;
     window.requestAnimationFrame(render);
 }
 
-function drawTextWithShadow(ctx, text, x, y, color = "#FFFFFF") {
-    drawText(ctx, text, x + 2, y + 2, darkenHexColor(color, 170));
-    drawText(ctx, text, x, y, color);
+function drawTextWithShadow(ctx, text, x, y, color = "#FFFFFF", align = "left") {
+    drawText(ctx, text, x + 2, y + 2, darkenHexColor(color, 170), align);
+    drawText(ctx, text, x, y, color, align);
 }
 
 function drawText(ctx, text, x, y, color = "#FFFFFF", align = "left") {
     ctx.fillStyle = color;
-    ctx.textAlign = align;
     ctx.textBaseline = "top";
+    ctx.textAlign = align;
     ctx.font = "bold " + (6 * RENDER_SCALE) + "px Courier";
+
     ctx.fillText(text, x, y);
 }
 
@@ -314,9 +318,10 @@ window.requestAnimationFrame(render);
 window.setInterval(tick, 1000 / TICKRATE);
 window.setInterval(function () {
     //console.log("FPS: " + fps + ", TPS: " + tps);
-    debugText = fps + " fps, " + tps + " ticks";
+    debugText = fps + " fps, " + tps + " ticks, " + ups + " updates";
     fps = 0;
     tps = 0;
+    ups = 0;
 }, 1000);
 
 function getRelativeCoordinates(event, element) {

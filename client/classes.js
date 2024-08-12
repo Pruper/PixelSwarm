@@ -9,7 +9,7 @@ const TILE_DATA = {
     3: { x: 2, y: 0, solid: false, break: { 3: 1 }, name: "Butter" },
     4: { x: 3, y: 0, hardness: 0.5, solid: true, break: { 4: 1 }, name: "Wood" },
     5: { x: 4, y: 0, solid: false, break: { 5: 1 }, name: "Floor" },
-    11: { x: 0, y: 2, hardness: 2, solid: true, break: { 4: 1 }, name: "Metal" },
+    11: { x: 0, y: 2, hardness: 2, solid: true, break: { 11: 1 }, name: "Metal" },
 
     8: { x: 2, y: 1, solid: false, break: { 8: 1 }, explosionPower: 2, name: "TNT" },
     9: { x: 3, y: 1, solid: false, break: { 9: 1 }, explosionPower: 4, name: "C4" },
@@ -455,7 +455,7 @@ class Map {
 
         // chained explosion
         if (TILE_DATA[this.getTile(x, y)].explosionPower) {
-            explosionPower = TILE_DATA[this.getTile(x, y)].explosionPower;
+            explosionPower += TILE_DATA[this.getTile(x, y)].explosionPower;
             this.setTile(x, y, 0);
         }
 

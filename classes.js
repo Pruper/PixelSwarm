@@ -1,23 +1,24 @@
 const CHUNK_SIZE = 16;
 const TILE_DATA = {
     0: { x: 15, y: 1, solid: false, break: null, name: "Air" },
-    1: { x: 0, y: 0, solid: false, break: { 1: 1 }, name: "Grass" },
-    6: { x: 0, y: 1, solid: false, break: { 6: 1 }, name: "Dirt" },
-    7: { x: 1, y: 1, solid: false, break: { 6: 1, 4: 6, 5: 2 }, name: "Tree" },
 
-    2: { x: 1, y: 0, solid: false, break: { 2: 1 }, name: "Rock" },
-    3: { x: 2, y: 0, solid: false, break: { 3: 1 }, name: "Butter" },
-    4: { x: 3, y: 0, hardness: 0.5, solid: true, break: { 4: 1 }, name: "Wood" },
-    5: { x: 4, y: 0, solid: false, break: { 5: 1 }, name: "Floor" },
-    11: { x: 0, y: 2, hardness: 2, solid: true, break: { 11: 1 }, name: "Metal" },
+    1: { x: 0, y: 0, solid: false, break: [{ id: 1, amount: 1 }], name: "Grass" },
+    6: { x: 0, y: 1, solid: false, break: [{ id: 6, amount: 1 }], name: "Dirt" },
+    7: { x: 1, y: 1, solid: false, break: [{ id: 6, amount: 1 }, { id: 4, min: 5, max: 7 }, { id: 5, min: 1, max: 3 }], name: "Tree" },
 
-    8: { x: 2, y: 1, solid: false, break: { 8: 1 }, explosionPower: 2, name: "TNT" },
-    9: { x: 3, y: 1, solid: false, break: { 9: 1 }, explosionPower: 4, name: "C4" },
-    10: { x: 4, y: 1, solid: false, break: { 10: 1 }, explosionPower: 8, name: "Nuclear Bomb" },
+    2: { x: 1, y: 0, solid: false, break: [{ id: 2, amount: 1 }, { id: 11, amount: 1, chance: 0.1 }], name: "Rock" },
+    3: { x: 2, y: 0, solid: false, break: [{ id: 3, amount: 1 }], name: "Butter" },
+    4: { x: 3, y: 0, hardness: 0.5, solid: true, break: [{ id: 4, amount: 1 }], name: "Wood" },
+    5: { x: 4, y: 0, solid: false, break: [{ id: 5, amount: 1 }], name: "Floor" },
+    11: { x: 0, y: 2, hardness: 2, solid: true, break: [{ id: 11, amount: 1 }], name: "Metal" },
 
+    8: { x: 2, y: 1, solid: false, break: [{ id: 8, amount: 1 }], explosionPower: 2, name: "TNT" },
+    9: { x: 3, y: 1, solid: false, break: [{ id: 9, amount: 1 }], explosionPower: 4, name: "C4" },
+    10: { x: 4, y: 1, solid: false, break: [{ id: 10, amount: 1 }], explosionPower: 8, name: "Nuclear Bomb" },
 
     999: { x: 15, y: 0, solid: false, break: null, name: "Null" }
 }
+
 
 const MINIMUM_EXPLOSION_POWER = 0.4;
 
@@ -76,11 +77,16 @@ class Chunk {
         if (tileData.break == null) return;
 
         this.setInternalTile(x, y, 0);
-        const keys = Object.keys(tileData.break);
-        for (let i in keys) {
+        for (let i in tileData.break) {
+            const amount = "amount" in tileData.break[i] ? tileData.break[i].amount : randomRangeInteger(tileData.break[i].min, (tileData.break[i].max));
+            const chance = "chance" in tileData.break[i] ? tileData.break[i].chance : 1; // 100% chance unless defined
+
+            if (amount >= 0 && randomRange(0, 1) <= chance) map.addEntity(new ItemEntity(this.x * CHUNK_SIZE + x + 0.5, this.y * CHUNK_SIZE + y + 0.5, tileData.break[i].id, amount));
+            /*
             for (let c = 0; c < tileData.break[keys[i]]; c++) {
                 map.addEntity(new ItemEntity(this.x * CHUNK_SIZE + x + 0.5, this.y * CHUNK_SIZE + y + 0.5, keys[i]))
             }
+            */
         }
     }
 
@@ -186,6 +192,7 @@ class Entity {
         this.rotation = rotation;
         this.movement = { x: 0, y: 0 }
         this.hitbox = { type: "circle", radius: 0.36 };
+        this.collisionChannel = "main";
 
         this.spriteX = spriteX;
         this.spriteY = spriteY;
@@ -238,13 +245,13 @@ class Entity {
         return { x: secondCoords.x, y: secondCoords.y };
     }
 
-    draw(ctx, spritesheet, scale) {
+    draw(ctx, spritesheet, scale, pixelOffsetX = 0, pixelOffsetY = 0) {
         if (!this.visible()) return;
 
         const interpolated = this.interpolatedCoordinates();
 
         let drawCoords = screenPositionFromCoordinates(interpolated.x - (0.5 * this.renderScale), interpolated.y - (0.5 * this.renderScale));
-        spritesheet.drawRotated(ctx, this.spriteX, this.spriteY, drawCoords.x, drawCoords.y, this.rotation, scale * this.renderScale);
+        spritesheet.drawRotated(ctx, this.spriteX, this.spriteY, drawCoords.x + pixelOffsetX, drawCoords.y + pixelOffsetY, this.rotation, scale * this.renderScale);
     }
 
     drawHitbox(ctx, scale) {
@@ -282,6 +289,20 @@ class Player extends Entity {
     constructor(x, y, rotation, spriteX, spriteY) {
         super(x, y, rotation, spriteX, spriteY);
         this.inventory = new Inventory(INVENTORY_SIZE);
+    }
+
+    dropItem(amount) {
+        if (this.inventory.getItem(inventorySelection) == null) return;
+        const item = this.inventory.getItem(inventorySelection);
+        const spawnLocation = coordinatesAlongAngle(this.x, this.y, 1, this.rotation - 90);
+
+        let entity = new ItemEntity(spawnLocation.x, spawnLocation.y, item.id, Math.min(item.amount, amount));
+        entity.throwDelay = TICKRATE * 1;
+        entity.movement.x = -(this.x - spawnLocation.x) / 5;
+        entity.movement.y = -(this.y - spawnLocation.y) / 5;
+        map.addEntity(entity);
+
+        this.inventory.removeFromSlot(inventorySelection, amount);
     }
 
     collisionCheck(otherEntity) {
@@ -332,13 +353,29 @@ class Rock extends Entity {
     }
 }
 
+const ITEM_MERGE_DISTANCE = 1;
+const MULTI_ITEM_OFFSET_AMOUNT = 5;
+
 class ItemEntity extends Entity {
-    constructor(x, y, id) {
+    constructor(x, y, id, amount) {
         super(x, y, 0, TILE_DATA[id].x, TILE_DATA[id].y);
-        this.id = id;
-        this.hitbox = { type: "circle", radius: 0.1 };
-        this.randomMovement(1);
+        this.hitbox = { type: "circle", radius: 0.25 };
+        this.collisionChannel = "item";
         this.renderScale = 0.4;
+
+        this.randomMovement(1);
+        this.id = id;
+        this.amount = amount;
+        this.throwDelay = 0;
+        this.removeTimer = TICKRATE * 30;
+    }
+
+    draw(ctx, spritesheet, scale) {
+        if (this.amount >= 16) super.draw(ctx, spritesheet, scale, -MULTI_ITEM_OFFSET_AMOUNT, -MULTI_ITEM_OFFSET_AMOUNT);
+        if (this.amount >= 8) super.draw(ctx, spritesheet, scale, MULTI_ITEM_OFFSET_AMOUNT, -MULTI_ITEM_OFFSET_AMOUNT);
+        if (this.amount >= 4) super.draw(ctx, spritesheet, scale, -MULTI_ITEM_OFFSET_AMOUNT, MULTI_ITEM_OFFSET_AMOUNT);
+        if (this.amount >= 2) super.draw(ctx, spritesheet, scale, MULTI_ITEM_OFFSET_AMOUNT, MULTI_ITEM_OFFSET_AMOUNT);
+        super.draw(ctx, spritesheet, scale);
     }
 
     randomMovement(intensity) {
@@ -354,6 +391,9 @@ class ItemEntity extends Entity {
         if (TILE_DATA[map.getTile(this.x, this.y)].solid && Math.abs(this.movement.x) < 1) {
             this.randomMovement(3);
         }
+        this.removeTimer--;
+        if (this.removeTimer <= 0) this.remove();
+        if (this.throwDelay > 0) this.throwDelay--;
     }
 
     collisionCheck(otherEntity) {
@@ -361,13 +401,25 @@ class ItemEntity extends Entity {
         if (result && otherEntity instanceof Player) {
             this.tryPickup(otherEntity);
         }
+        if (distanceBetween(this.x, this.y, otherEntity.x, otherEntity.y) <= ITEM_MERGE_DISTANCE && otherEntity instanceof ItemEntity) {
+            if (otherEntity.id === this.id) this.merge(otherEntity);
+        }
         return result;
     }
 
     tryPickup(player) {
-        if (this.removed || !player.inventory.canFitItem(this.id, 1)) return;
+        if (this.removed || this.throwDelay > 0 || !player.inventory.canFitItem(this.id, this.amount)) return;
 
-        player.inventory.addItem(this.id, 1);
+        player.inventory.addItem(this.id, this.amount);
+        this.remove();
+    }
+
+    merge(otherItem) {
+        if (this.removed || otherItem.removed) return;
+        if (this.throwDelay > 0 || otherItem.throwDelay > 0) return;
+
+        otherItem.amount += this.amount;
+        otherItem.randomMovement(0.5);
         this.remove();
     }
 }

@@ -5,15 +5,15 @@ const TILE_DATA = {
     6: { x: 0, y: 1, solid: false, break: { 6: 1 }, name: "Dirt" },
     7: { x: 1, y: 1, solid: false, break: { 6: 1, 4: 6, 5: 2 }, name: "Tree" },
 
-
     2: { x: 1, y: 0, solid: false, break: { 2: 1 }, name: "Rock" },
     3: { x: 2, y: 0, solid: false, break: { 3: 1 }, name: "Butter" },
-    4: { x: 3, y: 0, solid: true, break: { 4: 1 }, name: "Wood" },
+    4: { x: 3, y: 0, hardness: 0.5, solid: true, break: { 4: 1 }, name: "Wood" },
     5: { x: 4, y: 0, solid: false, break: { 5: 1 }, name: "Floor" },
+    11: { x: 0, y: 2, hardness: 2, solid: true, break: { 4: 1 }, name: "Metal" },
 
     8: { x: 2, y: 1, solid: false, break: { 8: 1 }, explosionPower: 2, name: "TNT" },
     9: { x: 3, y: 1, solid: false, break: { 9: 1 }, explosionPower: 4, name: "C4" },
-    10: { x: 4, y: 1, solid: false, break: { 10: 1 }, explosionPower: 6, name: "Nuclear Bomb" },
+    10: { x: 4, y: 1, solid: false, break: { 10: 1 }, explosionPower: 8, name: "Nuclear Bomb" },
 
 
     999: { x: 15, y: 0, solid: false, break: null, name: "Null" }
@@ -54,10 +54,14 @@ class Chunk {
     }
 
     explodeInternalTile(x, y, explosionPower) {
-        this.attemptDestroyInternalTile(x, y);
-        const boomExpansionBase = this.getInternalTileMapCoordinates(x, y);
+        let blownUpTile = this.getInternalTile(x, y);
+        let hardness = TILE_DATA[blownUpTile].hardness == null ? 0 : TILE_DATA[blownUpTile].hardness;
 
-        const newExplosionPower = explosionPower * randomRange(0.25, 0.75);
+        if (explosionPower < hardness) return;
+        this.attemptDestroyInternalTile(x, y);
+
+        const boomExpansionBase = this.getInternalTileMapCoordinates(x, y);
+        const newExplosionPower = (explosionPower - hardness) * randomRange(0.35, 0.75);
 
         if (newExplosionPower < MINIMUM_EXPLOSION_POWER) return;
 
@@ -123,6 +127,10 @@ class Inventory {
             if (this.items[slot] == null) continue;
             spritesheet.draw(ctx, TILE_DATA[this.items[slot].id].x, TILE_DATA[this.items[slot].id].y, 37.5 + slot * 75, 415, RENDER_SCALE * 0.5);
             if (this.items[slot].amount != 1) drawTextWithShadow(ctx, this.items[slot].amount, 52.5 + slot * 75, 405, "#FFFFFF", "right");
+        }
+
+        if (this.getItem(inventorySelection) != null) {
+            drawTextWithShadow(ctx, "Selected: " + TILE_DATA[this.getItem(inventorySelection).id].name, 25, 370);
         }
     }
 
@@ -329,9 +337,13 @@ class ItemEntity extends Entity {
         super(x, y, 0, TILE_DATA[id].x, TILE_DATA[id].y);
         this.id = id;
         this.hitbox = { type: "circle", radius: 0.1 };
-        this.movement.x = (Math.random() - 0.5) / 4;
-        this.movement.y = (Math.random() - 0.5) / 4;
+        this.randomMovement(1);
         this.renderScale = 0.4;
+    }
+
+    randomMovement(intensity) {
+        this.movement.x = intensity * (Math.random() - 0.5) / 4;
+        this.movement.y = intensity * (Math.random() - 0.5) / 4;
     }
 
     tick() {
@@ -339,6 +351,9 @@ class ItemEntity extends Entity {
         this.movement.x *= 0.8;
         this.movement.y *= 0.8;
         this.rotation += 10;
+        if (TILE_DATA[map.getTile(this.x, this.y)].solid && Math.abs(this.movement.x) < 1) {
+            this.randomMovement(3);
+        }
     }
 
     collisionCheck(otherEntity) {

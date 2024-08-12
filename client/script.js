@@ -41,6 +41,7 @@ window.addEventListener('keydown', function (event) {
         playerEntity.inventory.addItem(8, 5);
         playerEntity.inventory.addItem(9, 5);
         playerEntity.inventory.addItem(10, 5);
+        playerEntity.inventory.addItem(11, 5);
     }
 
     // Switch inventory slot if number is valid

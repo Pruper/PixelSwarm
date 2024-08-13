@@ -17,13 +17,51 @@ const TILE_DATA = {
     14: { x: 3, y: 2, hardness: 9999, solid: true, break: [{ id: 14, amount: 1 }], name: "Explosion-proof Rock" },
     16: { x: 0, y: 3, solid: false, speedModifier: 3, break: [{ id: 16, amount: 1 }], name: "Speed Road" },
 
-    8: { x: 2, y: 1, solid: false, break: [{ id: 8, amount: 1 }], explosionPower: 2, name: "TNT" },
-    9: { x: 3, y: 1, solid: false, break: [{ id: 9, amount: 1 }], explosionPower: 4, name: "C4" },
-    10: { x: 4, y: 1, solid: false, break: [{ id: 10, amount: 1 }], explosionPower: 8, name: "Nuclear Bomb" },
+    8: { x: 2, y: 1, solid: false, break: [{ id: 8, amount: 1 }], explosionPower: 2.5, name: "TNT" },
+    9: { x: 3, y: 1, solid: false, break: [{ id: 9, amount: 1 }], explosionPower: 5, name: "C4" },
+    10: { x: 4, y: 1, solid: false, break: [{ id: 10, amount: 1 }], explosionPower: 10, name: "Nuclear Bomb" },
+    17: { x: 1, y: 3, solid: false, break: [{ id: 17, amount: 1 }], name: "Powder Fuse" },
+    18: { x: 2, y: 3, solid: false, break: [{ id: 17, amount: 1 }], name: "Lit Powder Fuse" },
+    19: { x: 3, y: 3, solid: false, break: [{ id: 17, amount: 1 }], name: "Burned Powder Fuse" },
 
-    15: { x: 4, y: 2, solid: true, break: [{ id: 16, min: 16, max: 32 }, { id: 8, min: 32, max: 64 }, { id: 9, min: 32, max: 64 }, { id: 10, min: 32, max: 64 }], name: "Supply Crate" },
+    15: { x: 4, y: 2, solid: true, break: [{ id: 1001, min: 64, max: 128 }, { id: 16, min: 16, max: 32 }, { id: 8, min: 32, max: 64 }, { id: 9, min: 32, max: 64 }, { id: 10, min: 32, max: 64 }, { id: 17, min: 128, max: 256 }], name: "Supply Crate" },
 
     999: { x: 15, y: 0, solid: false, break: null, name: "Null" }
+}
+
+const DEFAULT_MAX_STACK_SIZE = 9999;
+const ITEM_DATA = {
+    1000: { x: 0, y: 7, handX: 1, handY: 7, handDistance: 0.6, maxStack: 1, name: "Colt Peacemaker" },
+    1001: { x: 1, y: 6, handX: 1, handY: 6, handDistance: 0.5, name: "Matchstick" },
+
+
+
+
+    0: { x: 15, y: 1, places: 0, handX: 15, handY: 1, name: "Air" },
+
+    1: { x: 0, y: 0, places: 1, handX: 0, handY: 0, name: "Grass" },
+    6: { x: 0, y: 1, places: 6, handX: 0, handY: 1, name: "Dirt" },
+    12: { x: 0, y: 6, places: 12, handX: 0, handY: 6, handDistance: 0.5, name: "Tree Sapling" },
+    7: { x: 1, y: 1, places: 7, handX: 1, handY: 1, name: "Tree" },
+
+    2: { x: 1, y: 0, places: 2, handX: 1, handY: 0, name: "Rock" },
+    3: { x: 2, y: 0, places: 3, handX: 2, handY: 0, name: "Butter" },
+    4: { x: 3, y: 0, places: 4, handX: 3, handY: 0, name: "Wood" },
+    5: { x: 4, y: 0, places: 5, handX: 4, handY: 0, name: "Floor" },
+    11: { x: 0, y: 2, places: 11, handX: 0, handY: 2, name: "Metal" },
+
+    13: { x: 2, y: 2, places: 13, handX: 2, handY: 2, name: "Water" },
+    14: { x: 3, y: 2, places: 14, handX: 3, handY: 2, name: "Explosion-proof Rock" },
+    16: { x: 0, y: 3, places: 16, handX: 0, handY: 3, name: "Speed Road" },
+
+    8: { x: 2, y: 1, places: 8, handX: 2, handY: 1, name: "TNT" },
+    9: { x: 3, y: 1, places: 9, handX: 3, handY: 1, name: "C4" },
+    10: { x: 4, y: 1, places: 10, handX: 4, handY: 1, name: "Nuclear Bomb" },
+    17: { x: 2, y: 6, places: 17, handX: 2, handY: 6, name: "Powder Fuse" },
+
+    15: { x: 4, y: 2, places: 15, handX: 4, handY: 2, name: "Supply Crate" },
+
+    999: { x: 15, y: 0, places: 999, handX: 15, handY: 0, name: "Null" }
 }
 
 
@@ -126,6 +164,46 @@ class Chunk {
                     this.setInternalTile(x, y, 13);
                     return true;
                 }
+                break;
+            case (18): // lit fuse spreads to fuse
+                let litUp = false;
+                
+                if (map.getTile(mapCoords.x + 1, mapCoords.y) === 17) {
+                    map.setTile(mapCoords.x + 1, mapCoords.y, 18);
+                    litUp = true;
+                }
+                if (map.getTile(mapCoords.x - 1, mapCoords.y) === 17) {
+                    map.setTile(mapCoords.x - 1, mapCoords.y, 18);
+                    litUp = true;
+                }
+                if (map.getTile(mapCoords.x, mapCoords.y + 1) === 17) {
+                    map.setTile(mapCoords.x, mapCoords.y + 1, 18);
+                    litUp = true;
+                }
+                if (map.getTile(mapCoords.x, mapCoords.y - 1) === 17) {
+                    map.setTile(mapCoords.x, mapCoords.y - 1, 18);
+                    litUp = true;
+                }
+
+                // IGNITE EXPLOSIVES
+
+                if ("explosionPower" in TILE_DATA[map.getTile(mapCoords.x + 1, mapCoords.y)]) {
+                    map.markForExplosion(mapCoords.x + 1, mapCoords.y, TILE_DATA[map.getTile(mapCoords.x + 1, mapCoords.y)].explosionPower);
+                }
+                if ("explosionPower" in TILE_DATA[map.getTile(mapCoords.x - 1, mapCoords.y)]) {
+                    map.markForExplosion(mapCoords.x - 1, mapCoords.y, TILE_DATA[map.getTile(mapCoords.x - 1, mapCoords.y)].explosionPower);
+                }
+                if ("explosionPower" in TILE_DATA[map.getTile(mapCoords.x, mapCoords.y + 1)]) {
+                    map.markForExplosion(mapCoords.x, mapCoords.y + 1, TILE_DATA[map.getTile(mapCoords.x, mapCoords.y + 1)].explosionPower);
+                }
+                if ("explosionPower" in TILE_DATA[map.getTile(mapCoords.x, mapCoords.y - 1)]) {
+                    map.markForExplosion(mapCoords.x, mapCoords.y - 1, TILE_DATA[map.getTile(mapCoords.x, mapCoords.y - 1)].explosionPower);
+                }
+
+
+                map.setTile(mapCoords.x, mapCoords.y, 19);
+                return litUp;
+                break;
         }
 
         return false;
@@ -181,12 +259,12 @@ class Inventory {
         // draw this after so items/text is always on top
         for (let slot = 0; slot < this.size; slot++) {
             if (this.items[slot] == null) continue;
-            spritesheet.draw(ctx, TILE_DATA[this.items[slot].id].x, TILE_DATA[this.items[slot].id].y, 37.5 + slot * 75, 415, RENDER_SCALE * 0.5);
+            spritesheet.draw(ctx, ITEM_DATA[this.items[slot].id].x, ITEM_DATA[this.items[slot].id].y, 37.5 + slot * 75, 415, RENDER_SCALE * 0.5);
             if (this.items[slot].amount != 1) drawTextWithShadow(ctx, this.items[slot].amount, 52.5 + slot * 75, 405, "#FFFFFF", "center");
         }
 
         if (this.getItem(inventorySelection) != null) {
-            drawTextWithShadow(ctx, "Selected: " + TILE_DATA[this.getItem(inventorySelection).id].name, 25, 370);
+            drawTextWithShadow(ctx, "Selected: " + ITEM_DATA[this.getItem(inventorySelection).id].name, 25, 370);
         }
     }
 
@@ -205,31 +283,64 @@ class Inventory {
         if (this.items[slot].amount <= 0) this.items[slot] = null;
     }
 
-    canFitItem(id, amount) {
+    amountCanFit(id, amount) {
+        const maxStack = ITEM_DATA[id].maxStack || DEFAULT_MAX_STACK_SIZE;
+        let fitAmount = 0;
+        let remaining = amount;
+    
         for (let slot = 0; slot < this.size; slot++) {
-            if (this.items[slot] == null) return true; // empty slot = can fit gauranteed
-            if (this.items[slot].id == id) return true; // same item id = can fit gauranteed
+            const item = this.items[slot];
+            if (item?.id === id) {
+                // how much can be added to stack?
+                fitAmount += Math.min(remaining, maxStack - item.amount);
+                remaining -= Math.min(remaining, maxStack - item.amount);
+                if (remaining <= 0) return fitAmount; // requested amount met
+            }
         }
-        return false;
+    
+        for (let slot = 0; slot < this.size; slot++) {
+            if (!this.items[slot]) {
+                fitAmount += Math.min(remaining, maxStack);
+                remaining -= Math.min(remaining, maxStack);
+                if (remaining <= 0) return fitAmount; // requested amount met
+            }
+        }
+    
+        return fitAmount; // total fittable amount
+    }
+
+    getEmptySlots() {
+        let empties = 0;
+        for (let i = 0; i < this.items.length; i++) {
+            if (this.items[i] == null) empties++;
+        }
+        return empties;
     }
 
     addItem(id, amount) {
-        if (!this.canFitItem(id, amount)) return;
+        let remaining = amount;
+        const maxStack = ITEM_DATA[id].maxStack || DEFAULT_MAX_STACK_SIZE;
+
         for (let slot = 0; slot < this.size; slot++) {
-            if (this.items[slot] == null) continue;
-            if (this.items[slot].id == id) {
-                this.items[slot].amount += amount;
-                return;
+            const item = this.items[slot];
+            if (item?.id === id) {
+                const addAmount = Math.min(remaining, maxStack - item.amount);
+                item.amount += addAmount;
+                remaining -= addAmount;
+                if (!remaining) return 0;
             }
         }
 
-        // this has to be done after to prevent empty slots getting filled with already held itemss
         for (let slot = 0; slot < this.size; slot++) {
-            if (this.items[slot] == null) {
-                this.items[slot] = { id: id, amount: amount };
-                return;
+            if (!this.items[slot]) {
+                const addAmount = Math.min(remaining, maxStack);
+                this.items[slot] = { id, amount: addAmount };
+                remaining -= addAmount;
+                if (!remaining) return 0;
             }
         }
+
+        return remaining;
     }
 }
 
@@ -469,13 +580,18 @@ class Player extends LivingEntity {
         this.displayName = "You";
     }
 
+    fireProjectile(entity) {
+        if (!(entity instanceof Projectile)) return;
+        map.addEntity(entity);
+    }
+
     draw(ctx, spritesheet, scale) {
         const interpolated = this.interpolatedCoordinates();
         if (this.inventory.getItem(inventorySelection) != null) {
-            const itemDrawLocation = coordinatesAlongAngle(interpolated.x - (0.5 * 0.6), interpolated.y - (0.5 * 0.6), 0.3, this.rotation - 90);
+            const itemData = ITEM_DATA[this.inventory.getItem(inventorySelection).id];
+            const itemDrawLocation = coordinatesAlongAngle(interpolated.x - (0.5 * 0.6), interpolated.y - (0.5 * 0.6), itemData.handDistance ? itemData.handDistance : 0.3, this.rotation - 90);
             const renderLocation = screenPositionFromCoordinates(itemDrawLocation.x, itemDrawLocation.y);
-            const itemData = TILE_DATA[this.inventory.getItem(inventorySelection).id];
-            spritesheet.drawRotated(ctx, itemData.x, itemData.y, renderLocation.x, renderLocation.y, this.rotation - 90, RENDER_SCALE * 0.6);
+            spritesheet.drawRotated(ctx, itemData.handX, itemData.handY, renderLocation.x, renderLocation.y, this.rotation, RENDER_SCALE * 0.6);
         }
         /* use for later
         if (this.displayName != "") {
@@ -490,12 +606,12 @@ class Player extends LivingEntity {
     dropItem(amount) {
         if (this.inventory.getItem(inventorySelection) == null) return;
         const item = this.inventory.getItem(inventorySelection);
-        const spawnLocation = coordinatesAlongAngle(this.x, this.y, 0.2, this.rotation - 90);
+        const spawnLocation = coordinatesAlongAngle(this.x, this.y, 0.1, this.rotation - 90);
 
         let entity = new ItemEntity(spawnLocation.x, spawnLocation.y, item.id, Math.min(item.amount, amount));
         entity.throwDelay = TICKRATE * 1;
-        entity.movement.x = -(this.x - spawnLocation.x) * 2;
-        entity.movement.y = -(this.y - spawnLocation.y) * 2;
+        entity.movement.x = -(this.x - spawnLocation.x) * 4;
+        entity.movement.y = -(this.y - spawnLocation.y) * 4;
         map.addEntity(entity);
 
         this.inventory.removeFromSlot(inventorySelection, amount);
@@ -554,7 +670,7 @@ const MULTI_ITEM_OFFSET_AMOUNT = 5;
 
 class ItemEntity extends Entity {
     constructor(x, y, id, amount) {
-        super(x, y, 0, TILE_DATA[id].x, TILE_DATA[id].y);
+        super(x, y, 0, ITEM_DATA[id].x, ITEM_DATA[id].y);
         this.hitbox = { type: "circle", radius: 0.25 };
         this.collisionChannel = "item";
         this.renderScale = 0.4;
@@ -604,19 +720,36 @@ class ItemEntity extends Entity {
     }
 
     tryPickup(player) {
-        if (this.removed || this.throwDelay > 0 || !player.inventory.canFitItem(this.id, this.amount)) return;
+        if (this.removed || this.throwDelay > 0) return;
 
-        player.inventory.addItem(this.id, this.amount);
-        this.remove();
+        const canFit = player.inventory.amountCanFit(this.id, this.amount);
+        if (canFit > 0) {
+            const added = player.inventory.addItem(this.id, canFit);
+            if (added === 0) {
+                this.remove();
+            } else {
+                this.amount -= canFit;
+                if (this.amount <= 0) this.remove();
+            }
+        }
     }
 
     merge(otherItem) {
-        if (this.removed || otherItem.removed) return;
-        if (this.throwDelay > 0 || otherItem.throwDelay > 0) return;
+        if (this.removed || otherItem.removed || this.throwDelay > 0 || otherItem.throwDelay > 0) return;
 
-        otherItem.amount += this.amount;
-        otherItem.randomMovement(0.5);
-        this.remove();
+        const maxStack = ITEM_DATA[otherItem.id].maxStack || Number.MAX_VALUE;
+        const availableSpace = maxStack - otherItem.amount;
+        const amountToMerge = Math.min(this.amount, availableSpace);
+
+        if (amountToMerge > 0) {
+            otherItem.amount += amountToMerge;
+            otherItem.randomMovement(0.5);
+            this.amount -= amountToMerge;
+
+            if (this.amount <= 0) {
+                this.remove();
+            }
+        }
     }
 }
 
@@ -806,17 +939,43 @@ class Map {
     }
 
     useItem(x, y, item) {
-        // other usage
+        if (item == null) return;
+        // matchstick
+        const itemData = ITEM_DATA[item.id];
         const clickedTile = map.getTile(x, y);
-        if (TILE_DATA[clickedTile].explosionPower >= MINIMUM_EXPLOSION_POWER) {
-            this.setTile(x, y, 0);
-            this.explodeTile(x, y, TILE_DATA[clickedTile].explosionPower);
+
+        // weapon
+        if (item.id === 1000) {
+            playerEntity.fireProjectile(new Projectile(playerEntity.x, playerEntity.y, playerEntity.rotation, 1, 1, 14));
             return false;
         }
 
-        // place tile otherwise
-        if (item == null) return false;
-        return this.setTile(x, y, item.id, true);
+        // matches
+        if (item.id === 1001) {
+            if (TILE_DATA[clickedTile].explosionPower >= MINIMUM_EXPLOSION_POWER) {
+                map.markForExplosion(x, y, TILE_DATA[clickedTile].explosionPower);
+                //this.setTile(x, y, 0);
+                //this.explodeTile(x, y, TILE_DATA[clickedTile].explosionPower);
+                return true;
+            }
+
+            else if (clickedTile === 17) { // unlit fuse
+                map.setTile(x, y, 18);
+                return true;
+            }
+        }
+
+        // check if can place tile, if so place it
+        if (item != null && "places" in ITEM_DATA[item.id]) {
+            return this.setTile(x, y, ITEM_DATA[item.id].places, true);
+        }
+
+
+        // check if can place tile, if so place it
+        if (item != null && "places" in ITEM_DATA[item.id]) {
+            return this.setTile(x, y, ITEM_DATA[item.id].places, true);
+        }
+        return false;
     }
 
     setTile(x, y, tile, conditional = false) {

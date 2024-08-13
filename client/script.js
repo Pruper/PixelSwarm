@@ -28,9 +28,8 @@ let keybinds = {
     " ": false, // drop item
 
     "b": false, // show hitboxes
-    "r": false, // spawn rock entity
     "n": false, // give debug items
-    "shift": false, // switch tile placement
+    "shift": false, // enhances other actions
     "f2": false, // take screenshots
     "f11": false, // fullscreen
 }
@@ -80,6 +79,12 @@ for (let i = 0; i < INVENTORY_SIZE; i++) {
     keybinds[(i + 1) + ""] = false;
     numberKeys.push((i + 1) + "");
 }
+
+// Scroll wheel listener for inventory selection
+window.addEventListener('wheel', (event) => {
+    const delta = Math.sign(event.deltaY); // positive for scroll down, negative for scroll up
+    inventorySelection = (inventorySelection - delta + INVENTORY_SIZE) % INVENTORY_SIZE;
+});
 
 // Initialize canvas and context
 let canvas = document.getElementById("canvas");
@@ -205,8 +210,7 @@ canvas.addEventListener("mousedown", function (e) {
 canvas.oncontextmenu = function (e) { e.preventDefault(); e.stopPropagation(); }
 
 function tick() {
-    if (keybinds["r"]) map.addEntity(new Projectile(playerEntity.x, playerEntity.y, playerEntity.rotation, 1, 1, 14));
-    if (keybinds[" "]) playerEntity.dropItem(1); // space key
+    if (keybinds[" "]) playerEntity.dropItem(keybinds["shift"] ? Number.MAX_VALUE : 1); // space key
 
     // map ticking
     map.tick();
@@ -319,7 +323,7 @@ function render() {
     drawTextWithShadow(ctx, "Position: " + Number(playerEntity.x).toFixed(2) + ", " + Number(playerEntity.y).toFixed(2), 10, 10);
     drawTextWithShadow(ctx, debugText, 10, 35);
     drawTextWithShadow(ctx, renderedEntities + " / " + map.entities.length + " entities rendered", 10, 60);
-    drawTextWithShadow(ctx, "Player speed: " + playerEntity.getTileSpeedModifier(), 10, 85);
+    //drawTextWithShadow(ctx, "Player speed: " + playerEntity.getTileSpeedModifier(), 10, 85);
 
     fps++;
     window.requestAnimationFrame(render);

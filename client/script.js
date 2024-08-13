@@ -32,6 +32,7 @@ let keybinds = {
     "n": false, // give debug items
     "shift": false, // switch tile placement
     "f2": false, // take screenshots
+    "f11": false, // fullscreen
 }
 
 // Keyboard event listener
@@ -39,9 +40,14 @@ window.addEventListener('keydown', function (event) {
     // Don't do anything if key is invalid
     if (!event.key.toLowerCase() in keybinds) return;
 
-    // Take a scrreenshot if F2 not already pressed to avoid spam
+    // Take a screenshot if F2 not already pressed to avoid spam
     if (!keybinds["f2"] && event.key.toLowerCase() == "f2") {
         screenshot();
+    }
+
+    // Full screen mode
+    if (!keybinds["f11"] && event.key.toLowerCase() == "f11") {
+        document.documentElement.requestFullscreen();
     }
 
     // Give debug items
@@ -78,6 +84,28 @@ for (let i = 0; i < INVENTORY_SIZE; i++) {
 // Initialize canvas and context
 let canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("2d");
+
+// Fullscreen support
+let lastToggleTime = 0;
+const FULLSCREEN_TOGGLE_DELAY = 1000;
+function fullscreenStatus() {
+    return document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement;
+}
+
+function resizeCanvas() {
+    lastToggleTime = Date.now();
+    canvas.style.width = fullscreenStatus() ? '100vw' : '';
+    canvas.style.height = fullscreenStatus() ? '100vh' : '';
+    document.getElementById("footer").style.display = fullscreenStatus() ? "none" : "block";
+}
+
+document.addEventListener('fullscreenchange', (e) => {
+    resizeCanvas();
+});
+resizeCanvas();
 
 // Set up variables for tracking FPS, TPS, and Updates, set lastTick to current time because we just started
 let fps = 0;
@@ -147,6 +175,7 @@ let selectionBox = { x: 0, y: 0, visible: false }
 
 canvas.addEventListener("mousemove", function (e) {
     let mouseCoords = getRelativeCoordinates(e, canvas);
+    if (fullscreenStatus()) mouseCoords = { x: e.clientX * canvas.width / window.innerWidth, y: e.clientY * canvas.height / window.innerHeight };
 
     mousePosition.x = mouseCoords.x;
     mousePosition.y = mouseCoords.y;

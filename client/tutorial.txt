@@ -1,0 +1,21 @@
+Welcome to Pixel Swarm, a game made by Pruper!
+
+You start in an empty map... do whatever you want! More features will come soon.
+To get some stuff to use, break tiles. Some tiles are solid and you'll need to destroy them to walk through.
+Water spreads into air... careful not to flood everything!
+
+Here are the controls:
+
+Main controls
+- W, A, S, and D to move around (can also use the arrow keys)
+- Right click to place a tile / use an item
+- Left click to destroy a tile
+- Space to drop a single item, Shift + Space to drop all of what you're holding
+
+Other controls
+- N to give a loot crate with some fun stuff to play with :)
+- F2 to take a screenshot
+- F11 to toggle fullscreen (can be buggy sometimes)
+
+Debug controls (for developer)
+- B to show entity hitboxes and tile collision checking

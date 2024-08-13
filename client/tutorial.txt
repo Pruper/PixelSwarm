@@ -8,8 +8,8 @@ Here are the controls:
 
 Main controls
 - W, A, S, and D to move around (can also use the arrow keys)
-- Right click to place a tile / use an item
-- Left click to destroy a tile
+- Right click (or hold) to place a tile / use an item
+- Left click (or hold) to destroy a tile
 - Space to drop a single item, Shift + Space to drop all of what you're holding
 
 Other controls

@@ -15,6 +15,9 @@ const WORLD_BOUNDARY = 16 / 2 * CHUNK_SIZE;
 
 // Set up keybinds
 let keybinds = {
+    "rightclick": false, // right click
+    "leftclick": false, // left click
+
     "w": false, // up
     "s": false, // down
     "a": false, // left
@@ -116,6 +119,7 @@ resizeCanvas();
 let fps = 0;
 let tps = 0;
 let ups = 0;
+let totalTickCount = 0;
 let lastTick = Date.now();
 
 // Define debug text to add to screen corner later
@@ -193,23 +197,41 @@ canvas.addEventListener("mousemove", function (e) {
 
 canvas.addEventListener("mouseleave", function (e) {
     selectionBox.visible = false;
+    keybinds["rightclick"] = false;
+    keybinds["leftclick"] = false;
 });
 
 canvas.addEventListener("mousedown", function (e) {
     if (e.button == 2) {
         // right click
+        keybinds["rightclick"] = true;
         if (map.useItem(selectionBox.x, selectionBox.y, playerEntity.inventory.getItem(inventorySelection))) {
             playerEntity.inventory.removeFromSlot(inventorySelection, 1);
         }
     } else {
         // left or middle click
+        keybinds["leftclick"] = true;
         map.attemptDestroyTile(selectionBox.x, selectionBox.y);
+    }
+});
+
+canvas.addEventListener("mouseup", function (e) {
+    if (e.button == 2) {
+        keybinds["rightclick"] = false;
+    } else {
+        keybinds["leftclick"] = false;
     }
 });
 
 canvas.oncontextmenu = function (e) { e.preventDefault(); e.stopPropagation(); }
 
 function tick() {
+    if (keybinds["rightclick"]) {
+        if (map.useItem(selectionBox.x, selectionBox.y, playerEntity.inventory.getItem(inventorySelection))) {
+            playerEntity.inventory.removeFromSlot(inventorySelection, 1);
+        }
+    }
+    if (keybinds["leftclick"]) map.attemptDestroyTile(selectionBox.x, selectionBox.y);
     if (keybinds[" "]) playerEntity.dropItem(keybinds["shift"] ? Number.MAX_VALUE : 1); // space key
 
     // map ticking
@@ -254,6 +276,7 @@ function tick() {
 
     lastTick = Date.now();
     tps++;
+    totalTickCount++;
 }
 
 function resolveCollision(entity1, entity2) {

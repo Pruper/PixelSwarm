@@ -34,6 +34,7 @@ let keybinds = {
     "shift": false, // enhances other actions
     "f2": false, // take screenshots
     "f11": false, // fullscreen
+    "h": false // hide footer
 }
 
 // Keyboard event listener
@@ -54,6 +55,11 @@ window.addEventListener('keydown', function (event) {
     // Give debug items
     if (!keybinds["n"] && event.key.toLowerCase() == "n") {
         playerEntity.inventory.addItem(15, 1);
+    }
+
+    // Hide footer
+    if (!keybinds["h"] && event.key.toLowerCase() == "h") {
+        toggleFooterDisplay();
     }
 
     // Switch inventory slot if number is valid
@@ -102,11 +108,23 @@ function fullscreenStatus() {
         document.msFullscreenElement;
 }
 
+let hideFooter = false;
+
+function toggleFooterDisplay() {
+    hideFooter = !hideFooter;
+    document.getElementById("footer").style.display = footerStatus();
+}
+
+function footerStatus() {
+    return hideFooter ||  fullscreenStatus() ? "none" : "block";
+}
+
 function resizeCanvas() {
     lastToggleTime = Date.now();
     canvas.style.width = fullscreenStatus() ? '100vw' : '';
     canvas.style.height = fullscreenStatus() ? '100vh' : '';
-    document.getElementById("footer").style.display = fullscreenStatus() ? "none" : "block";
+
+    document.getElementById("footer").style.display = footerStatus();
 }
 
 document.addEventListener('fullscreenchange', (e) => {

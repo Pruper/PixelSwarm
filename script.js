@@ -9,9 +9,8 @@ document.getElementById("footer-information").innerHTML = GAME_NAMEVER + "<br>Ma
 const TICKRATE = 20;
 const PLAYER_SPEED = 4 / TICKRATE;
 
-const MAP_CHUNK_SIZE = 8;
+const MAP_CHUNK_SIZE = 12;
 const MAP_INITIAL_ENTITIES = 256;
-const WORLD_BOUNDARY = 16 / 2 * CHUNK_SIZE;
 
 // Set up keybinds
 let keybinds = {
@@ -195,6 +194,9 @@ canvas.addEventListener("mousemove", function (e) {
     selectionBox.visible = true;
 });
 
+let lastRightClick = Date.now();
+const RIGHT_CLICK_HOLD_COOLDOWN = 100;
+
 canvas.addEventListener("mouseleave", function (e) {
     selectionBox.visible = false;
     keybinds["rightclick"] = false;
@@ -205,19 +207,17 @@ canvas.addEventListener("mousedown", function (e) {
     if (e.button == 2) {
         // right click
         keybinds["rightclick"] = true;
-        if (map.useItem(selectionBox.x, selectionBox.y, playerEntity.inventory.getItem(inventorySelection))) {
-            playerEntity.inventory.removeFromSlot(inventorySelection, 1);
-        }
+        lastRightClick = 0;
     } else {
         // left or middle click
         keybinds["leftclick"] = true;
-        map.attemptDestroyTile(selectionBox.x, selectionBox.y);
     }
 });
 
 canvas.addEventListener("mouseup", function (e) {
     if (e.button == 2) {
         keybinds["rightclick"] = false;
+        lastRightClick = 0;
     } else {
         keybinds["leftclick"] = false;
     }
@@ -226,10 +226,11 @@ canvas.addEventListener("mouseup", function (e) {
 canvas.oncontextmenu = function (e) { e.preventDefault(); e.stopPropagation(); }
 
 function tick() {
-    if (keybinds["rightclick"]) {
+    if (keybinds["rightclick"] && Date.now() - lastRightClick >= RIGHT_CLICK_HOLD_COOLDOWN) {
         if (map.useItem(selectionBox.x, selectionBox.y, playerEntity.inventory.getItem(inventorySelection))) {
             playerEntity.inventory.removeFromSlot(inventorySelection, 1);
         }
+        lastRightClick = Date.now();
     }
     if (keybinds["leftclick"]) map.attemptDestroyTile(selectionBox.x, selectionBox.y);
     if (keybinds[" "]) playerEntity.dropItem(keybinds["shift"] ? Number.MAX_VALUE : 1); // space key

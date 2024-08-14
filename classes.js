@@ -2,10 +2,10 @@ const CHUNK_SIZE = 16;
 const TILE_DATA = {
     0: { x: 15, y: 1, solid: false, break: null, name: "Air" },
 
-    1: { x: 0, y: 0, solid: false, break: [{ id: 6, amount: 1 }], name: "Grass" },
+    1: { x: 0, y: 0, solid: false, break: [{ id: 6, min: 1, max: 2 }], name: "Grass" },
     6: { x: 0, y: 1, solid: false, break: [{ id: 6, amount: 1 }], name: "Dirt" },
     12: { x: 1, y: 2, solid: false, break: [{ id: 12, amount: 1 }], name: "Tree Sapling" },
-    7: { x: 1, y: 1, solid: true, break: [{ id: 12, amount: 1 }, { id: 4, min: 5, max: 7 }, { id: 5, min: 1, max: 3 }], name: "Tree" },
+    7: { x: 1, y: 1, solid: true, break: [{ id: 12, amount: 1 }, { id: 4, min: 5, max: 7 }, { id: 5, min: 1, max: 3 }, { id: 20, amount: 1, chance: 0.1 }], name: "Tree" },
 
     2: { x: 1, y: 0, solid: false, break: [{ id: 2, amount: 1 }, { id: 11, amount: 1, chance: 0.1 }], name: "Rock" },
     3: { x: 2, y: 0, solid: false, break: [{ id: 3, amount: 1 }], name: "Butter" },
@@ -24,7 +24,10 @@ const TILE_DATA = {
     18: { x: 2, y: 3, solid: false, break: [{ id: 17, amount: 1 }], name: "Lit Powder Fuse" },
     19: { x: 3, y: 3, solid: false, break: [{ id: 17, amount: 1 }], name: "Burned Powder Fuse" },
 
-    15: { x: 4, y: 2, solid: true, break: [{ id: 1001, min: 64, max: 128 }, { id: 16, min: 16, max: 32 }, { id: 8, min: 32, max: 64 }, { id: 9, min: 32, max: 64 }, { id: 10, min: 32, max: 64 }, { id: 17, min: 128, max: 256 }], name: "Supply Crate" },
+    20: { x: 5, y: 0, hardness: 0.5, solid: true, break: [{ id: 20, amount: 1 }], name: "Door" },
+    21: { x: 6, y: 0, solid: false, break: [{ id: 20, amount: 1 }], name: "Open Door" },
+
+    15: { x: 4, y: 2, solid: true, break: [{ id: 1001, min: 32, max: 64 }, { id: 16, min: 16, max: 32 }, { id: 8, min: 32, max: 64 }, { id: 9, min: 32, max: 64 }, { id: 10, min: 32, max: 64 }, { id: 17, min: 64, max: 128 }], name: "Supply Crate" },
 
     999: { x: 15, y: 0, solid: false, break: null, name: "Null" }
 }
@@ -33,6 +36,7 @@ const DEFAULT_MAX_STACK_SIZE = 9999;
 const ITEM_DATA = {
     1000: { x: 0, y: 7, handX: 1, handY: 7, handDistance: 0.6, maxStack: 1, name: "Colt Peacemaker" },
     1001: { x: 1, y: 6, handX: 1, handY: 6, handDistance: 0.5, name: "Matchstick" },
+    1002: { x: 4, y: 6, handX: 4, handY: 6, handDistance: 0.5, name: "Dummy Hatcher" },
 
 
 
@@ -60,6 +64,8 @@ const ITEM_DATA = {
     17: { x: 2, y: 6, places: 17, handX: 2, handY: 6, name: "Powder Fuse" },
 
     15: { x: 4, y: 2, places: 15, handX: 4, handY: 2, name: "Supply Crate" },
+
+    20: { x: 3, y: 6, places: 20, handX: 3, handY: 6, handDistance: 0.5, name: "Door" },
 
     999: { x: 15, y: 0, places: 999, handX: 15, handY: 0, name: "Null" }
 }
@@ -167,7 +173,7 @@ class Chunk {
                 break;
             case (18): // lit fuse spreads to fuse
                 let litUp = false;
-                
+
                 if (map.getTile(mapCoords.x + 1, mapCoords.y) === 17) {
                     map.setTile(mapCoords.x + 1, mapCoords.y, 18);
                     litUp = true;
@@ -287,7 +293,7 @@ class Inventory {
         const maxStack = ITEM_DATA[id].maxStack || DEFAULT_MAX_STACK_SIZE;
         let fitAmount = 0;
         let remaining = amount;
-    
+
         for (let slot = 0; slot < this.size; slot++) {
             const item = this.items[slot];
             if (item?.id === id) {
@@ -297,7 +303,7 @@ class Inventory {
                 if (remaining <= 0) return fitAmount; // requested amount met
             }
         }
-    
+
         for (let slot = 0; slot < this.size; slot++) {
             if (!this.items[slot]) {
                 fitAmount += Math.min(remaining, maxStack);
@@ -305,7 +311,7 @@ class Inventory {
                 if (remaining <= 0) return fitAmount; // requested amount met
             }
         }
-    
+
         return fitAmount; // total fittable amount
     }
 
@@ -644,6 +650,10 @@ class Dummy extends LivingEntity {
             this.directionChangeTimer = randomRange(30, 50);
         }
         this.rotation = getAngleTowards(0, 0, this.movement.x, this.movement.y);
+
+        if (randomRangeInteger(1, TICKRATE * 300) === TICKRATE * 300) {
+            map.addEntity(new ItemEntity(this.x, this.y, 1002, randomRangeInteger(1, 2)));
+        }
     }
 }
 
@@ -857,10 +867,11 @@ class Map {
     }
 
     generateFeatures() {
-        const waterPoolAmount = randomRangeInteger(12, 16);
+        // water pools
+        const waterPoolAmount = randomRangeInteger(24, 36);
         for (let i = 0; i < waterPoolAmount; i++) {
             let center = this.randomTileLocation();
-            let radius = Math.floor(Math.random() * 3) + 2; // random radius between 2 and 4
+            let radius = randomRangeInteger(2, 6);
 
             for (let x = center.x - radius; x <= center.x + radius; x++) {
                 for (let y = center.y - radius; y <= center.y + radius; y++) {
@@ -939,10 +950,22 @@ class Map {
     }
 
     useItem(x, y, item) {
-        if (item == null) return;
-        // matchstick
-        const itemData = ITEM_DATA[item.id];
         const clickedTile = map.getTile(x, y);
+        // any rightclick functions
+        if (clickedTile === 20) { // closed door
+            map.setTile(x, y, 21);
+            return false;
+        }
+
+        if (clickedTile === 21) { // open door
+            map.setTile(x, y, 20);
+            return false;
+        }
+
+
+        // requires item functions
+        if (item == null) return;
+        const itemData = ITEM_DATA[item.id];
 
         // weapon
         if (item.id === 1000) {
@@ -963,6 +986,12 @@ class Map {
                 map.setTile(x, y, 18);
                 return true;
             }
+        }
+
+        // dummy egg
+        if (item.id === 1002) {
+            map.addEntity(new Dummy(x + 0.5, y + 0.5));
+            return true;
         }
 
         // check if can place tile, if so place it

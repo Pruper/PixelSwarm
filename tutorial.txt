@@ -16,6 +16,7 @@ Other controls
 - N to give a loot crate with some fun stuff to play with :)
 - F2 to take a screenshot
 - F11 to toggle fullscreen (can be buggy sometimes)
+- H to toggle footer display (useful if it's sticking on the game display)
 
 Debug controls (for developer)
 - B to show entity hitboxes and tile collision checking
